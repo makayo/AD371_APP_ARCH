@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gatehouse · Auth &amp; RBAC</title>
+  <meta name="description" content="A secure authentication and role-based access control demo, audited and tested against an industry security checklist.">
+  <style>
+    :root {
+      --bg: #f6f5f1; --surface: #ffffff; --ink: #1d1f24; --muted: #5d6270; --line: #e3e1da;
+      --accent: #2f5d50; --ok: #2e7d4f; --bad: #b3382c; --user: #2d5fa8; --admin: #8a4b0f;
+      --radius: 12px;
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg: #15171b; --surface: #1d2026; --ink: #e9e7e1; --muted: #a2a6b1; --line: #2e323a;
+        --accent: #7fbfa8; --ok: #6fcf97; --bad: #f08a7e; --user: #8ab4f8; --admin: #f0b46f; }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--ink); line-height: 1.6; }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .9em; }
+    a { color: var(--accent); }
+    .wrap { max-width: 960px; margin: 0 auto; padding: 0 16px; }
+
+    header { padding: 64px 0 40px; border-bottom: 1px solid var(--line); }
+    .brand { font-weight: 700; letter-spacing: .02em; color: var(--muted); margin-bottom: 16px; }
+    .brand span { color: var(--accent); }
+    h1 { font-size: clamp(1.8rem, 4.5vw, 2.8rem); line-height: 1.15; margin: 0 0 16px; max-width: 22ch; }
+    .lede { font-size: 1.1rem; color: var(--muted); max-width: 62ch; margin: 0 0 24px; }
+    .btns { display: flex; flex-wrap: wrap; gap: 10px; }
+    .btn { display: inline-block; padding: 10px 16px; border-radius: 8px; font-weight: 600; text-decoration: none; border: 1px solid var(--accent); }
+    .btn.primary { background: var(--accent); color: var(--surface); }
+    .btn.ghost { color: var(--ink); border-color: var(--line); background: var(--surface); }
+    .stack { margin-top: 24px; display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip { font-size: .85rem; padding: 3px 10px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); background: var(--surface); }
+
+    section { padding: 48px 0; border-bottom: 1px solid var(--line); }
+    h2 { font-size: 1.5rem; margin: 0 0 8px; }
+    .sub { color: var(--muted); margin: 0 0 24px; max-width: 65ch; }
+
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+    .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px; }
+    .card h3 { margin: 0 0 6px; font-size: 1rem; }
+    .card p { margin: 0; color: var(--muted); font-size: .95rem; }
+
+    .tablewrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+    table { width: 100%; border-collapse: collapse; font-size: .95rem; }
+    th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+    tr:last-child td { border-bottom: 0; }
+    th { color: var(--muted); font-weight: 600; }
+    .s200 { color: var(--ok); font-weight: 700; }
+    .s4xx { color: var(--bad); font-weight: 700; }
+    .pass { color: var(--ok); font-weight: 700; }
+
+    .flaw { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--bad); border-radius: var(--radius); padding: 20px 22px; }
+    .flaw h3 { margin: 0 0 8px; }
+    .flaw p { margin: 0 0 10px; }
+    .flaw p:last-child { margin: 0; }
+    .flaw .fix { border-top: 1px solid var(--line); padding-top: 10px; }
+
+    .shots { display: grid; gap: 22px; }
+    figure { margin: 0; }
+    figure img { width: 100%; height: auto; display: block; border: 1px solid var(--line); border-radius: var(--radius); }
+    figcaption { color: var(--muted); font-size: .92rem; margin-top: 8px; }
+
+    pre { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; overflow-x: auto; margin: 0; }
+    footer { padding: 32px 0 48px; color: var(--muted); font-size: .9rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <div class="brand"><span>◆</span> Gatehouse</div>
+      <h1>Authentication and role-based access, enforced on the server</h1>
+      <p class="lede">An AI-assisted app with registration, login and User/Admin roles, reviewed against a security checklist and tested by hand in Chrome DevTools.</p>
+      <div class="btns">
+        <a class="btn primary" href="https://github.com/makayo/AD371_APP_ARCH/tree/main/ASSIGNMENT/WK4/auth-rbac-app">View the code on GitHub</a>
+        <a class="btn ghost" href="https://github.com/makayo/AD371_APP_ARCH/tree/main/ASSIGNMENT/WK4/auth-rbac-app#readme">Read the README</a>
+      </div>
+      <div class="stack">
+        <span class="chip">Node.js 22</span><span class="chip">node:sqlite</span><span class="chip">scrypt</span>
+        <span class="chip">Server-side sessions</span><span class="chip">Vanilla HTML/JS</span><span class="chip">Zero dependencies</span>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section>
+      <div class="wrap">
+        <h2>Three levels of access</h2>
+        <p class="sub">Every protected endpoint checks the session and role on the server. Hiding the Admin link in the UI is cosmetic only.</p>
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>Endpoint</th><th>Anonymous</th><th>User</th><th>Admin</th></tr></thead>
+            <tbody>
+              <tr><td><code>GET /api/public</code></td><td class="s200">200</td><td class="s200">200</td><td class="s200">200</td></tr>
+              <tr><td><code>GET /api/user/dashboard</code></td><td class="s4xx">401</td><td class="s200">200</td><td class="s200">200</td></tr>
+              <tr><td><code>GET /api/admin/users</code></td><td class="s4xx">401</td><td class="s4xx">403</td><td class="s200">200</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <h2>Security checklist</h2>
+        <p class="sub">The AI-generated code was reviewed against four checks before it was trusted.</p>
+        <div class="grid">
+          <div class="card"><h3>Password storage</h3><p>Salted scrypt (N=2<sup>17</sup>, r=8, p=1), the OWASP-recommended setting. No plaintext, no MD5 or SHA-256.</p></div>
+          <div class="card"><h3>Server-side enforcement</h3><p>A <code>requireRole('admin')</code> guard runs on every admin request. The role comes from the database, never from the client.</p></div>
+          <div class="card"><h3>Secrets &amp; safe output</h3><p>Secrets live in <code>.env</code>. Password hashes are never returned in any API response.</p></div>
+          <div class="card"><h3>No user enumeration</h3><p>Wrong password and unknown user return the same message: “Invalid username or password.”</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <h2>An issue caught during generation</h2>
+        <p class="sub">The AI's own test run caught a problem in its first version and corrected it before handing over the code.</p>
+        <div class="flaw">
+          <h3>A rate limiter that would lock out a whole office</h3>
+          <p>The first login rate limiter counted failures by IP address and by username together, both capped at 5. Everyone behind one shared network (a school, an office) would be locked out after a few typos by anyone.</p>
+          <p class="fix"><strong>Fix:</strong> two separate limits, 5 failed attempts per account to stop password guessing and 50 per IP to stop credential spraying.</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <h2>QA results</h2>
+        <p class="sub">Each checklist item was tested by hand in Chrome with DevTools open.</p>
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>Checklist</th><th>What was tested</th><th>Result</th></tr></thead>
+            <tbody>
+              <tr><td>1. Authentication</td><td>Account created; login 200; generic "Invalid username or password."; logout returns to logged-out view</td><td class="pass">Pass</td></tr>
+              <tr><td>2. Authorization</td><td>User → dashboard 200; user → admin 403; admin opens both pages; logged out → 401</td><td class="pass">Pass</td></tr>
+              <tr><td>3. Input validation</td><td>Empty fields rejected in browser and server (400); <code>' OR '1'='1</code> handled safely</td><td class="pass">Pass</td></tr>
+              <tr><td>4. Console &amp; network</td><td>200 in Network; 401 and 403 in the Access tester; console shows no errors</td><td class="pass">Pass</td></tr>
+              <tr><td>Password storage</td><td><code>npm run db:inspect</code> shows salted scrypt hashes, no plaintext</td><td class="pass">Pass</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <h2>Screenshots</h2>
+        <p class="sub">Taken from the app running locally during development.</p>
+        <div class="shots">
+          <figure><img src="images/dashboard.png" alt="User dashboard showing the logged-in user's details" loading="lazy"><figcaption>A standard user's dashboard: no Admin link in the menu.</figcaption></figure>
+          <figure><img src="images/user-403.png" alt="403 Forbidden shown when a user requests the admin endpoint" loading="lazy"><figcaption>The same user calling the admin endpoint directly gets 403 Forbidden from the server.</figcaption></figure>
+          <figure><img src="images/admin.png" alt="Admin user management page with metrics and user list" loading="lazy"><figcaption>The admin view: user list and metrics, with no password hashes exposed.</figcaption></figure>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <h2>Run it locally</h2>
+        <p class="sub">Requires Node.js 22.13 or newer. Nothing to install.</p>
+<pre><code>git clone https://github.com/makayo/AD371_APP_ARCH.git
+cd AD371_APP_ARCH/ASSIGNMENT/WK4/auth-rbac-app
+cp .env.example .env    # set ADMIN_PASSWORD
+npm start               # http://localhost:3000
+npm test                # automated tests</code></pre>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap">AD371 · Application Architecture · Week 4 hands-on assignment</div>
+  </footer>
+</body>
+</html>

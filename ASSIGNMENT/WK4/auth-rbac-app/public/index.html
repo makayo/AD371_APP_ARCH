@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gatehouse · Auth &amp; RBAC Demo</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="mark" aria-hidden="true">◆</span> Gatehouse</div>
+    <nav aria-label="Main">
+      <a href="#home" data-view="home">Home</a>
+      <a href="#register" data-view="register" data-guest>Register</a>
+      <a href="#login" data-view="login" data-guest>Log in</a>
+      <a href="#dashboard" data-view="dashboard" data-auth hidden>Dashboard</a>
+      <!-- Hiding this link is cosmetic only. The server enforces the admin role. -->
+      <a href="#admin" data-view="admin" data-admin hidden>Admin</a>
+    </nav>
+    <div class="session">
+      <span id="whoami" class="pill">Not logged in</span>
+      <button id="logout-btn" class="ghost" type="button" hidden>Log out</button>
+    </div>
+  </header>
+
+  <main>
+    <section id="view-home" class="view">
+      <h1>Authentication &amp; role-based access, enforced on the server</h1>
+      <p class="lede">Three levels of access: a public page, a dashboard for any logged-in user, and an admin area for the <code>admin</code> role only.</p>
+      <div class="cards">
+        <article class="card"><span class="tag public">Public</span><h3>/api/public</h3><p>Anyone can read this.</p></article>
+        <article class="card"><span class="tag user">User</span><h3>/api/user/dashboard</h3><p>Requires a valid session. Otherwise <b>401</b>.</p></article>
+        <article class="card"><span class="tag admin">Admin</span><h3>/api/admin/users</h3><p>Requires the admin role. Users get <b>403</b>.</p></article>
+      </div>
+      <div class="panel">
+        <h2>Public data</h2>
+        <pre id="public-data">Loading…</pre>
+      </div>
+    </section>
+
+    <section id="view-register" class="view" hidden>
+      <h1>Create an account</h1>
+      <form id="register-form" class="form" novalidate>
+        <label>Username
+          <input name="username" autocomplete="username" required minlength="3" maxlength="32" pattern="[A-Za-z0-9_.\-]{3,32}">
+          <small>3–32 characters: letters, numbers, _ . -</small>
+        </label>
+        <label>Password
+          <input name="password" type="password" autocomplete="new-password" required minlength="10" maxlength="128">
+          <small>At least 10 characters, not containing your username.</small>
+        </label>
+        <button type="submit">Register</button>
+        <p class="msg" role="status" aria-live="polite"></p>
+      </form>
+    </section>
+
+    <section id="view-login" class="view" hidden>
+      <h1>Log in</h1>
+      <form id="login-form" class="form" novalidate>
+        <label>Username
+          <input name="username" autocomplete="username" required maxlength="64">
+        </label>
+        <label>Password
+          <input name="password" type="password" autocomplete="current-password" required maxlength="128">
+        </label>
+        <button type="submit">Log in</button>
+        <p class="msg" role="status" aria-live="polite"></p>
+      </form>
+    </section>
+
+    <section id="view-dashboard" class="view" hidden>
+      <h1>Dashboard</h1>
+      <div class="panel"><pre id="dashboard-data">Loading…</pre></div>
+    </section>
+
+    <section id="view-admin" class="view" hidden>
+      <h1>Admin · User management</h1>
+      <div id="admin-metrics" class="metrics"></div>
+      <div class="panel">
+        <table class="table">
+          <thead><tr><th>ID</th><th>Username</th><th>Role</th><th>Created</th></tr></thead>
+          <tbody id="admin-users"></tbody>
+        </table>
+      </div>
+      <p class="msg" id="admin-msg" role="status"></p>
+    </section>
+
+    <section class="panel tester" aria-labelledby="tester-h">
+      <h2 id="tester-h">Access tester</h2>
+      <p>Calls each endpoint directly, bypassing the UI, so you can see what the <em>server</em> answers for the current session.</p>
+      <div class="btnrow">
+        <button type="button" class="ghost" data-probe="/api/public">GET /api/public</button>
+        <button type="button" class="ghost" data-probe="/api/user/dashboard">GET /api/user/dashboard</button>
+        <button type="button" class="ghost" data-probe="/api/admin/users">GET /api/admin/users</button>
+      </div>
+      <ol id="probe-log" class="log"></ol>
+    </section>
+  </main>
+
+  <footer class="foot">Passwords hashed with scrypt · HttpOnly SameSite=Strict session cookie · server-side route guards</footer>
+</body>
+</html>

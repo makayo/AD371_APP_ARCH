@@ -1,0 +1,18 @@
+{
+  "name": "week02-auth-rbac",
+  "version": "1.0.0",
+  "description": "Secure authentication + role-based access control demo (zero dependencies, Node 22+)",
+  "main": "server.js",
+  "private": true,
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning --env-file-if-exists=.env server.js",
+    "dev": "node --disable-warning=ExperimentalWarning --env-file-if-exists=.env --watch server.js",
+    "test": "node --disable-warning=ExperimentalWarning --test --test-reporter=spec test/qa.test.js",
+    "db:inspect": "node --disable-warning=ExperimentalWarning --env-file-if-exists=.env scripts/inspect-db.js",
+    "secret": "node -e \"console.log(require('crypto').randomBytes(48).toString('hex'))\""
+  },
+  "license": "MIT"
+}
