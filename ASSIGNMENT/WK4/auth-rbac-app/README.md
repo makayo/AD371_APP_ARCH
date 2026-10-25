@@ -149,3 +149,7 @@ Tested manually in Chrome with DevTools open on October 24, 2026.
 **Password storage check**
 
 - [x] `npm run db:inspect` showed both accounts stored as salted scrypt hashes, with no plaintext passwords
+
+**Automated test suite**
+
+- [x] `npm test`: 24 tests, 24 passed, 0 failed (run on October 24, 2026)
