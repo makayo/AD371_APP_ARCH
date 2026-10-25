@@ -74,7 +74,7 @@ It has three access levels:
 
 ### Exact prompts submitted
 
-**Prompt 1:** The full assignment brief was pasted into Claude, followed by `lets do this:`. The brief included the sample prompt:
+**Prompt 1:** The full assignment brief was pasted into Claude. The brief included the sample prompt:
 
 ```text
 Act as a senior security engineer. Build a lightweight full-stack application (or REST API with a simple frontend) demonstrating basic Authentication and Role-Based Access Control (RBAC).
