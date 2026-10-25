@@ -29,7 +29,7 @@ It has three access levels:
 
    ```bash
    git clone https://github.com/makayo/AD371_APP_ARCH.git
-   cd AD371_APP_ARCH/ASSIGNMENT/WK4/auth-rbac-app
+   cd AD371_APP_ARCH/WK4/auth-rbac-app
    ```
 
 2. **Install dependencies**

@@ -2,7 +2,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const { openDb } = require('./db');
+const { openDb } = require('./db'); 
 const { hashPassword, verifyPassword, getDummyHash } = require('./password');
 const { createSessionStore, parseCookies, sessionCookie, clearedCookie, COOKIE_NAME } = require('./sessions');
 const { validateCredentials } = require('./validate');
