@@ -45,7 +45,18 @@ Docker Compose topology: a dual-homed Nginx load balancer distributes traffic ro
 
 ## 2. Setup & Execution Guide
 
-Requires Docker Desktop. Run from this folder.
+**Prerequisites:** [Git](https://git-scm.com/downloads), [Docker Desktop](https://www.docker.com/products/docker-desktop/) (running), and port 8080 free. For the notebooks: Python 3 with Jupyter.
+
+**Quick start**
+
+```bash
+git clone https://github.com/makayo/AD371_APP_ARCH.git
+cd AD371_APP_ARCH/WK5/multi_subnet_load_balancer
+docker compose up -d --build --wait
+curl http://localhost:8080/        # repeat to see round-robin
+```
+
+**Commands** (run from `multi_subnet_load_balancer`)
 
 | Task                      | Command                                            |
 | ------------------------- | -------------------------------------------------- |
@@ -57,7 +68,7 @@ Requires Docker Desktop. Run from this folder.
 | Clean up                  | `docker compose down`                              |
 | Clean up including images | `docker compose down --rmi local --remove-orphans` |
 
-Test: `curl http://localhost:8080/` (repeat to see round-robin), or run `WK5_Load_Balancer_Demo.ipynb`.
+Full QA tests: open `WK5_Load_Balancer_Demo.ipynb` in Jupyter and run all cells.
 
 ## 3. AI Disclosure & Prompt Appendix
 
