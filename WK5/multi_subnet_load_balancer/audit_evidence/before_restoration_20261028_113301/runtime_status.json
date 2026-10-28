@@ -1,0 +1,8 @@
+{
+  "captured_at": "2026-10-28T11:33:01.719784",
+  "project_directory": "C:\\Users\\marky\\Documents\\AD_BAS\\FALL_QTR_27\\AD371_APP_ARCH\\WK5",
+  "snapshot_directory": "C:\\Users\\marky\\Documents\\AD_BAS\\FALL_QTR_27\\AD371_APP_ARCH\\WK5\\audit_evidence\\before_restoration_20261028_113301",
+  "docker_compose_ps_exit_code": 0,
+  "docker_compose_ps_stdout": "NAME             IMAGE          COMMAND                  SERVICE    CREATED          STATUS          PORTS\nwk5-backend2-1   wk5-backend2   \"python -u app.py\"       backend2   30 minutes ago   Up 30 minutes   8000/tcp\nwk5-nginx-1      nginx:alpine   \"/docker-entrypoint.\u00e2\u20ac\u00a6\"   nginx      30 minutes ago   Up 30 minutes   0.0.0.0:8080->80/tcp, [::]:8080->80/tcp\n",
+  "docker_compose_ps_stderr": ""
+}

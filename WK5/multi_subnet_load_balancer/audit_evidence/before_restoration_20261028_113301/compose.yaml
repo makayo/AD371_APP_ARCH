@@ -1,0 +1,33 @@
+services:
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - public_subnet
+      - private_subnet
+    depends_on:
+      - backend1
+      - backend2
+
+  backend1:
+    build: .
+    environment:
+      SERVER_ID: backend1
+    networks:
+      - private_subnet
+
+  backend2:
+    build: .
+    environment:
+      SERVER_ID: backend2
+    networks:
+      - private_subnet
+
+networks:
+  public_subnet:
+    driver: bridge
+  private_subnet:
+    driver: bridge

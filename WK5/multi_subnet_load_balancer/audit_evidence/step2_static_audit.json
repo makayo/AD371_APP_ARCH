@@ -1,0 +1,14 @@
+{
+  "captured_at": "2026-10-28T11:36:32.311359",
+  "source_snapshot": "C:\\Users\\marky\\Documents\\AD_BAS\\FALL_QTR_27\\AD371_APP_ARCH\\WK5\\audit_evidence\\before_restoration_20261028_113301",
+  "checks": {
+    "backend_ports_published_to_host": false,
+    "private_subnet_internal_true": false,
+    "nginx_dual_homed": true,
+    "backends_use_private_subnet": true,
+    "uses_docker_service_names": true,
+    "explicit_proxy_timeouts": false,
+    "proxy_next_upstream_configured": false,
+    "alternative_balancing_algorithm": false
+  }
+}

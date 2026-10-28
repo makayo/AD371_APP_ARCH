@@ -1,0 +1,35 @@
+{
+  "captured_at": "2026-10-28T11:37:38.665066",
+  "declared_compose": {
+    "command": [
+      "docker",
+      "compose",
+      "config"
+    ],
+    "returncode": 0,
+    "stdout": "name: wk5\nservices:\n  backend1:\n    build:\n      context: C:\\Users\\marky\\Documents\\AD_BAS\\FALL_QTR_27\\AD371_APP_ARCH\\WK5\n      dockerfile: Dockerfile\n    environment:\n      SERVER_ID: backend1\n    networks:\n      private_subnet: null\n  backend2:\n    build:\n      context: C:\\Users\\marky\\Documents\\AD_BAS\\FALL_QTR_27\\AD371_APP_ARCH\\WK5\n      dockerfile: Dockerfile\n    environment:\n      SERVER_ID: backend2\n    networks:\n      private_subnet: null\n  nginx:\n    depends_on:\n      backend1:\n        condition: service_started\n        required: true\n      backend2:\n        condition: service_started\n        required: true\n    image: nginx:alpine\n    networks:\n      private_subnet: null\n      public_subnet: null\n    ports:\n      - mode: ingress\n        target: 80\n        published: \"8080\"\n        protocol: tcp\n    volumes:\n      - type: bind\n        source: C:\\Users\\marky\\Documents\\AD_BAS\\FALL_QTR_27\\AD371_APP_ARCH\\WK5\\nginx\\nginx.conf\n        target: /etc/nginx/nginx.conf\n        read_only: true\n        bind: {}\nnetworks:\n  private_subnet:\n    name: wk5_private_subnet\n    driver: bridge\n  public_subnet:\n    name: wk5_public_subnet\n    driver: bridge\n",
+    "stderr": ""
+  },
+  "running_public_network": {
+    "command": [
+      "docker",
+      "network",
+      "inspect",
+      "wk5_public_subnet"
+    ],
+    "returncode": 0,
+    "stdout": "[\n    {\n        \"Name\": \"wk5_public_subnet\",\n        \"Id\": \"ddcfd2007376240210b01ec1c48d9775d21326376e1e13ed608e484ead284b05\",\n        \"Created\": \"2026-10-28T18:02:24.694563016Z\",\n        \"Scope\": \"local\",\n        \"Driver\": \"bridge\",\n        \"EnableIPv4\": true,\n        \"EnableIPv6\": false,\n        \"IPAM\": {\n            \"Driver\": \"default\",\n            \"Options\": null,\n            \"Config\": [\n                {\n                    \"Subnet\": \"172.20.0.0/16\",\n                    \"Gateway\": \"172.20.0.1\"\n                }\n            ]\n        },\n        \"Internal\": false,\n        \"Attachable\": false,\n        \"Ingress\": false,\n        \"ConfigFrom\": {\n            \"Network\": \"\"\n        },\n        \"ConfigOnly\": false,\n        \"Options\": {\n            \"com.docker.network.enable_ipv4\": \"true\",\n            \"com.docker.network.enable_ipv6\": \"false\"\n        },\n        \"Labels\": {\n            \"com.docker.compose.config-hash\": \"b195dc07f7f88c55e5198dce8e5dd56ad5acf930c1dfdad0b9b7d32aef51e15b\",\n            \"com.docker.compose.network\": \"public_subnet\",\n            \"com.docker.compose.project\": \"wk5\",\n            \"com.docker.compose.version\": \"5.1.4\"\n        },\n        \"Containers\": {\n            \"eec5da3180be6fdcb3e265032c0bf68a6703eae3bb0a8e03ec693a690d360b01\": {\n                \"Name\": \"wk5-nginx-1\",\n                \"EndpointID\": \"1adc066febd2caf4997394bed8674d569a3ce2d7607b3cbb2957f3691b87e8b1\",\n                \"MacAddress\": \"c2:3f:b8:06:be:86\",\n                \"IPv4Address\": \"172.20.0.2/16\",\n                \"IPv6Address\": \"\"\n            }\n        },\n        \"Status\": {\n            \"IPAM\": {\n                \"Subnets\": {\n                    \"172.20.0.0/16\": {\n                        \"IPsInUse\": 4,\n                        \"DynamicIPsAvailable\": 65532\n                    }\n                }\n            }\n        }\n    }\n]\n",
+    "stderr": ""
+  },
+  "running_private_network": {
+    "command": [
+      "docker",
+      "network",
+      "inspect",
+      "wk5_private_subnet"
+    ],
+    "returncode": 0,
+    "stdout": "[\n    {\n        \"Name\": \"wk5_private_subnet\",\n        \"Id\": \"77e9ab0de38c08eee830f4a3d68e37819ec0942bb54307bc27f0e4fdb125f150\",\n        \"Created\": \"2026-10-28T18:02:24.656582803Z\",\n        \"Scope\": \"local\",\n        \"Driver\": \"bridge\",\n        \"EnableIPv4\": true,\n        \"EnableIPv6\": false,\n        \"IPAM\": {\n            \"Driver\": \"default\",\n            \"Options\": null,\n            \"Config\": [\n                {\n                    \"Subnet\": \"172.19.0.0/16\",\n                    \"Gateway\": \"172.19.0.1\"\n                }\n            ]\n        },\n        \"Internal\": true,\n        \"Attachable\": false,\n        \"Ingress\": false,\n        \"ConfigFrom\": {\n            \"Network\": \"\"\n        },\n        \"ConfigOnly\": false,\n        \"Options\": {\n            \"com.docker.network.enable_ipv4\": \"true\",\n            \"com.docker.network.enable_ipv6\": \"false\"\n        },\n        \"Labels\": {\n            \"com.docker.compose.config-hash\": \"312a416cbd1a5d9fceee79bf63011ff55a12e693f6335cd1439c9395555b3e7d\",\n            \"com.docker.compose.network\": \"private_subnet\",\n            \"com.docker.compose.project\": \"wk5\",\n            \"com.docker.compose.version\": \"5.1.4\"\n        },\n        \"Containers\": {\n            \"589a1fdc5605879cbe4ab016d4c3334823a630c0c1b87671cbd6a3391dd11069\": {\n                \"Name\": \"wk5-backend2-1\",\n                \"EndpointID\": \"e6addc9eaeb4b451c3ee31b22a9214afbabf0da43bbd60c41d56736b1b31cfd6\",\n                \"MacAddress\": \"7e:1f:da:8a:fb:d1\",\n                \"IPv4Address\": \"172.19.0.2/16\",\n                \"IPv6Address\": \"\"\n            },\n            \"eec5da3180be6fdcb3e265032c0bf68a6703eae3bb0a8e03ec693a690d360b01\": {\n                \"Name\": \"wk5-nginx-1\",\n                \"EndpointID\": \"9e9e8bf718f59253fd01495a7f653a351c93e6de5771b8d923d67f908f709d2a\",\n                \"MacAddress\": \"12:6a:fd:6b:fc:24\",\n                \"IPv4Address\": \"172.19.0.4/16\",\n                \"IPv6Address\": \"\"\n            }\n        },\n        \"Status\": {\n            \"IPAM\": {\n                \"Subnets\": {\n                    \"172.19.0.0/16\": {\n                        \"IPsInUse\": 5,\n                        \"DynamicIPsAvailable\": 65531\n                    }\n                }\n            }\n        }\n    }\n]\n",
+    "stderr": ""
+  }
+}
