@@ -36,7 +36,7 @@ Docker Compose topology: a dual-homed Nginx load balancer distributes traffic ro
 
 | File                           | Purpose                                                     |
 | ------------------------------ | ----------------------------------------------------------- |
-| `compose.yaml`                 | Services, subnets, health checks, restart policy            |
+| `compose.yaml`                 | Services, subnets, health checks                            |
 | `nginx/nginx.conf`             | Upstream pool, timeouts, retries, health endpoints, logging |
 | `app.py`, `Dockerfile`         | Backend service                                             |
 | `WK5_Network_Audit_Demo.ipynb` | Audit of the original AI draft                              |
@@ -128,18 +128,17 @@ Initial prompt: the assignment's sample prompt (exact text below). ChatGPT follo
 
 **Patched:**
 
-| Issue                                    | Effect                                          | Patch                                                          |
-| ---------------------------------------- | ----------------------------------------------- | -------------------------------------------------------------- |
-| No proxy timeouts                        | 2 of 5 requests timed out with one backend down | `proxy_connect_timeout 1s`; read/send `5s`                     |
-| No retry policy                          | Failed requests not rerouted                    | `proxy_next_upstream error timeout http_502 http_503 http_504` |
-| No passive health tuning                 | Dead backend kept being tried                   | `max_fails=1 fail_timeout=5s`                                  |
-| DNS resolved once at startup             | Restarted backend might not rejoin              | `resolver 127.0.0.11 valid=5s` with `resolve`                  |
-| `/healthz` answered by nginx only        | Reported healthy with a backend down            | Docker health checks; `/healthz/backend`                       |
-| Duplicate `Content-Type` header          | Malformed response                              | `default_type text/plain`                                      |
-| Private subnet not internal              | Backends could reach the internet               | `internal: true`                                               |
-| Start order only                         | nginx could start before backends were ready    | `condition: service_healthy`                                   |
-| No restart policy                        | Crashed backend stayed down                     | `restart: unless-stopped`                                      |
-| No forwarded headers or upstream logging | Client IP lost; routing not traceable           | `proxy_set_header`; upstream `log_format`                      |
+| Issue                             | Effect                                          | Patch                                                          |
+| --------------------------------- | ----------------------------------------------- | -------------------------------------------------------------- |
+| No proxy timeouts                 | 2 of 5 requests timed out with one backend down | `proxy_connect_timeout 1s`; read/send `5s`                     |
+| No retry policy                   | Failed requests not rerouted                    | `proxy_next_upstream error timeout http_502 http_503 http_504` |
+| No passive health tuning          | Dead backend kept being tried                   | `max_fails=1 fail_timeout=5s`                                  |
+| DNS resolved once at startup      | Restarted backend might not rejoin              | `resolver 127.0.0.11 valid=5s` with `resolve`                  |
+| `/healthz` answered by nginx only | Backends never health-checked                   | Docker health checks on each backend                           |
+| Duplicate `Content-Type` header   | Malformed response                              | `default_type text/plain`                                      |
+| Private subnet not internal       | Backends could reach the internet               | `internal: true`                                               |
+| Start order only                  | nginx could start before backends were ready    | `condition: service_healthy`                                   |
+| No upstream logging               | Routing not traceable                           | Upstream `log_format`                                          |
 
 Deviations: host port 8080 instead of 80; no TLS. Original AI files: `audit_evidence/` and Git tag `wk5-ai-original`.
 
@@ -147,15 +146,14 @@ Deviations: host port 8080 instead of 80; no TLS. Original AI files: `audit_evid
 
 Windows, Docker Desktop, 28 Oct 2026.
 
-| QA test                         | AI draft                                                                               | Corrected                                                                                |
-| ------------------------------- | -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| Round-robin (10 requests)       | ✅ 5/5 alternation                                                                     | ✅ 5/5 alternation                                                                       |
-| Failover (`backend1` stopped)   | ❌ 2 of 5 requests timed out (5 s hangs)                                               | ✅ 10/10 served by `backend2`, 0 dropped, no 502                                         |
-| Recovery (`backend1` restarted) | ❌ No mechanism: no restart policy, DNS resolved once at startup                       | ✅ Healthy in 6.6 s, back in rotation in 7.7 s, no nginx restart                         |
-| Host access to backend ports    | ✅ Blocked (no published ports)                                                        | ✅ Blocked                                                                               |
-| Backend access to internet      | ❌ Allowed (private subnet not internal)                                               | ✅ Blocked (`internal: true`)                                                            |
-| Health check                    | ⚠️ 200 from nginx only; duplicate `Content-Type`; reported healthy with a backend down | ✅ 200 with a single header; backend health checked by Docker and via `/healthz/backend` |
-| Browser console                 | Not tested                                                                             | ✅ Clean                                                                                 |
+| QA test                         | AI draft                                                                               | Corrected                                                        |
+| ------------------------------- | -------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| Round-robin (10 requests)       | ✅ 5/5 alternation                                                                     | ✅ 5/5 alternation                                               |
+| Failover (`backend1` stopped)   | ❌ 2 of 5 requests timed out (5 s hangs)                                               | ✅ 10/10 served by `backend2`, 0 dropped, no 502                 |
+| Recovery (`backend1` restarted) | ❌ No mechanism: DNS resolved once at startup                                          | ✅ Healthy in 6.6 s, back in rotation in 7.7 s, no nginx restart |
+| Host access to backend ports    | ✅ Blocked (no published ports)                                                        | ✅ Blocked                                                       |
+| Health check                    | ⚠️ 200 from nginx only; duplicate `Content-Type`; reported healthy with a backend down | ✅ 200 with a single header; backend health checked by Docker    |
+| Browser console                 | Not tested                                                                             | ✅ Clean                                                         |
 
 **Checklist (corrected system)**
 
