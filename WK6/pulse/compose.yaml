@@ -1,0 +1,53 @@
+# Pulse - Docker Compose orchestration
+#   docker compose up -d --build        start 2 replicas
+#   docker compose up -d --scale pulse=4   scale to 4
+#   docker compose down                 tear down
+name: pulse
+
+services:
+  pulse:
+    build: .
+    image: pulse:1.0.0
+    environment:
+      APP_VERSION: "1.0.0"
+      DEMO_MODE: "true"        # enables Simulate failure / Crash buttons. Turn off outside demos.
+      MAX_MEM_MB: "48"         # /healthz fails before the 64M memory limit is reached
+      PEER_SERVICE: "pulse"    # fleet panel finds every replica via Docker DNS
+    # Each replica gets its own host port from this range (8080, 8081, ...).
+    # No container_name on purpose: a fixed name would block scaling.
+    ports:
+      - "8080-8089:8080"
+
+    # Self-healing: Docker restarts a replica whenever its process exits.
+    restart: unless-stopped
+
+    # Same check as the Dockerfile HEALTHCHECK, declared here so it's visible in the manifest.
+    healthcheck:
+      test: ["CMD", "/app", "-healthcheck"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+    # Security hardening
+    user: "65534:65534"        # non-root (nobody)
+    read_only: true            # app writes nothing to disk
+    cap_drop: [ALL]            # no Linux capabilities needed (port 8080 is unprivileged)
+    security_opt:
+      - no-new-privileges:true
+
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 64M
+        reservations:
+          memory: 16M
+
+    stop_grace_period: 10s     # app shuts down gracefully on SIGTERM
+    logging:
+      driver: json-file
+      options:
+        max-size: "1m"
+        max-file: "3"

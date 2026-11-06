@@ -1,6 +1,6 @@
-Dockerfile
-.dockerignore
-README.md
 .git
+.dockerignore
+Dockerfile
+compose.yaml
 *.md
 screenshots/

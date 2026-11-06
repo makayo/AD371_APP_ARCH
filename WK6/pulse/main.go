@@ -21,16 +21,21 @@ import (
 )
 
 var (
-	startTime  = time.Now()
-	version    = getenv("APP_VERSION", "1.0.0")
-	port       = getenv("PORT", "8080")
-	maxMemMB   = getenvInt("MAX_MEM_MB", 256) // healthz fails above this heap size
-	maxGor     = getenvInt("MAX_GOROUTINES", 1000)
-	maxLogs    = getenvInt("MAX_LOGS", 100)
-	demoMode   = os.Getenv("DEMO_MODE") == "true" // enables the "simulate failure" switch
-	idPattern  = regexp.MustCompile(`[0-9a-f]{64}`)
-	cachedID   string
-	cachedOnce sync.Once
+	startTime = time.Now()
+	version   = getenv("APP_VERSION", "1.0.0")
+	port      = getenv("PORT", "8080")
+	maxMemMB  = getenvInt("MAX_MEM_MB", 256) // healthz fails above this heap size
+	maxGor    = getenvInt("MAX_GOROUTINES", 1000)
+	maxLogs   = getenvInt("MAX_LOGS", 100)
+	demoMode  = os.Getenv("DEMO_MODE") == "true" // enables the "simulate failure" switch
+	// Fleet discovery: PEER_SERVICE is the compose service name; Docker's DNS
+	// resolves it to every replica's IP. PEERS is a static host:port list (local testing).
+	peerService = os.Getenv("PEER_SERVICE")
+	peerPort    = getenv("PEER_PORT", "8080")
+	staticPeers = os.Getenv("PEERS")
+	idPattern   = regexp.MustCompile(`[0-9a-f]{64}`)
+	cachedID    string
+	cachedOnce  sync.Once
 )
 
 func getenv(k, def string) string {
@@ -53,6 +58,10 @@ func getenvInt(k string, def int) int {
 // Falls back to the hostname, which Docker sets to the short container ID.
 func containerID() string {
 	cachedOnce.Do(func() {
+		if v := os.Getenv("INSTANCE_ID"); v != "" { // override, for local testing only
+			cachedID = v
+			return
+		}
 		for _, f := range []string{"/proc/self/cgroup", "/proc/self/mountinfo"} {
 			file, err := os.Open(f)
 			if err != nil {
@@ -267,6 +276,146 @@ func handleHealthLogs(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// ---------- Fleet: see and control every replica ----------
+
+type ReplicaStatus struct {
+	Addr     string `json:"addr"`
+	ID       string `json:"id"`
+	IP       string `json:"ip"`
+	Status   string `json:"status"`
+	Simulate bool   `json:"simulate_fail"`
+	Uptime   string `json:"uptime"`
+	UptimeS  int64  `json:"uptime_s"`
+	Version  string `json:"version"`
+	Checks   int    `json:"checks"`
+	Self     bool   `json:"self"`
+	Error    string `json:"error,omitempty"`
+}
+
+// handleStatus reports this replica's state without adding a health-log entry,
+// so fleet polling doesn't flood every replica's log.
+func handleStatus(w http.ResponseWriter, r *http.Request) {
+	status, _ := runChecks()
+	mu.Lock()
+	sim := simulateFail
+	checks := totalChecks
+	mu.Unlock()
+	ip := ""
+	if ips := localIPs(); len(ips) > 0 {
+		ip = ips[0]
+	}
+	up := time.Since(startTime)
+	writeJSON(w, http.StatusOK, ReplicaStatus{
+		ID: shortID(), IP: ip, Status: status, Simulate: sim,
+		Uptime: up.Round(time.Second).String(), UptimeS: int64(up.Seconds()), Version: version,
+		Checks: checks,
+	})
+}
+
+func discoverPeers() []string {
+	if staticPeers != "" {
+		var out []string
+		for _, p := range strings.Split(staticPeers, ",") {
+			if p = strings.TrimSpace(p); p != "" {
+				out = append(out, p)
+			}
+		}
+		return out
+	}
+	if peerService == "" {
+		return []string{"127.0.0.1:" + port}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	ips, err := net.DefaultResolver.LookupHost(ctx, peerService)
+	if err != nil {
+		return []string{"127.0.0.1:" + port}
+	}
+	out := make([]string, 0, len(ips))
+	for _, ip := range ips {
+		out = append(out, net.JoinHostPort(ip, peerPort))
+	}
+	return out
+}
+
+var peerClient = &http.Client{Timeout: 1500 * time.Millisecond}
+
+func handleFleet(w http.ResponseWriter, r *http.Request) {
+	addrs := discoverPeers()
+	out := make([]ReplicaStatus, len(addrs))
+	var wg sync.WaitGroup
+	for i, a := range addrs {
+		wg.Add(1)
+		go func(i int, a string) {
+			defer wg.Done()
+			rs := ReplicaStatus{Addr: a, Status: "down"}
+			resp, err := peerClient.Get("http://" + a + "/api/status")
+			if err != nil {
+				rs.Error = "unreachable"
+				out[i] = rs
+				return
+			}
+			defer resp.Body.Close()
+			if err := json.NewDecoder(resp.Body).Decode(&rs); err != nil {
+				rs.Status, rs.Error = "down", "bad response"
+			}
+			rs.Addr = a
+			rs.Self = rs.ID == shortID()
+			out[i] = rs
+		}(i, a)
+	}
+	wg.Wait()
+	writeJSON(w, http.StatusOK, map[string]any{
+		"self":     shortID(),
+		"service":  peerService,
+		"replicas": out,
+	})
+}
+
+// handleFleetAction forwards Kill / Fail / Recover to one replica.
+// The target must be one of the discovered replicas (no arbitrary URLs).
+func handleFleetAction(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Addr   string `json:"addr"`
+		Action string `json:"action"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1024)).Decode(&in); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "send {\"addr\":..., \"action\": \"kill|fail|recover\"}"})
+		return
+	}
+	known := false
+	for _, a := range discoverPeers() {
+		if a == in.Addr {
+			known = true
+			break
+		}
+	}
+	if !known {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "unknown replica"})
+		return
+	}
+	var path, body string
+	switch in.Action {
+	case "kill":
+		path, body = "/api/crash", ""
+	case "fail":
+		path, body = "/api/simulate", `{"fail":true}`
+	case "recover":
+		path, body = "/api/simulate", `{"fail":false}`
+	default:
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "action must be kill, fail or recover"})
+		return
+	}
+	resp, err := peerClient.Post("http://"+in.Addr+path, "application/json", strings.NewReader(body))
+	if err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "replica unreachable"})
+		return
+	}
+	resp.Body.Close()
+	log.Printf("fleet action %q sent to %s", in.Action, in.Addr)
+	writeJSON(w, http.StatusOK, map[string]string{"ok": "sent", "action": in.Action, "addr": in.Addr})
+}
+
 // handlePulse is a tiny endpoint the dashboard polls every second to drive the
 // heartbeat line. It returns the statuses of checks that happened since `since`.
 func handlePulse(w http.ResponseWriter, r *http.Request) {
@@ -375,8 +524,21 @@ func main() {
 	})
 	mux.HandleFunc("GET /api/health-logs", handleHealthLogs)
 	mux.HandleFunc("GET /api/pulse", handlePulse)
+	mux.HandleFunc("GET /api/status", handleStatus)
+	mux.HandleFunc("GET /api/fleet", handleFleet)
 	if demoMode {
 		mux.HandleFunc("POST /api/simulate", handleSimulate)
+		mux.HandleFunc("POST /api/fleet/action", handleFleetAction)
+		// Crash the process on purpose so the orchestrator's restart policy
+		// can be seen bringing it back (self-healing demo).
+		mux.HandleFunc("POST /api/crash", func(w http.ResponseWriter, r *http.Request) {
+			log.Printf("crash requested from %s: exiting with code 1", r.RemoteAddr)
+			writeJSON(w, http.StatusOK, map[string]any{"crashing": true, "host": shortID()})
+			go func() {
+				time.Sleep(200 * time.Millisecond)
+				os.Exit(1)
+			}()
+		})
 	}
 
 	srv := &http.Server{

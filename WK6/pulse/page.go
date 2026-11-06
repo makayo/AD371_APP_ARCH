@@ -10,7 +10,7 @@ const landingPage = `<!DOCTYPE html>
   :root { --bg:#07090d; --card:#0c1016; --card2:#10151d; --line:#1a212c; --line2:#243041; --text:#d7dee8; --muted:#6b7686; --dim:#465162;
           --accent:#22d3ee; --ok:#2ee59d; --bad:#ff4d6d; --mono:"JetBrains Mono","SF Mono",ui-monospace,Menlo,Consolas,monospace; }
   * { box-sizing:border-box; }
-    html { color-scheme:dark; scrollbar-color:var(--line2) transparent; scrollbar-width:thin; }
+  html { color-scheme:dark; scrollbar-color:var(--line2) transparent; scrollbar-width:thin; }
   body { margin:0; font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif; color:var(--text); background:var(--bg);
          background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
          background-size:40px 40px; background-position:-1px -1px; }
@@ -74,6 +74,25 @@ const landingPage = `<!DOCTYPE html>
   .label { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.12em; }
   .num { font-size:26px; font-weight:500; margin-top:6px; }
 
+  .fleet { display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:10px; margin-top:16px; }
+  .rep { background:var(--card2); border:1px solid var(--line); border-radius:8px; padding:12px 14px; position:relative; overflow:hidden; transition:border-color .3s, opacity .3s; }
+  .rep::before { content:""; position:absolute; left:0; top:0; width:2px; height:100%; background:var(--ok); }
+  .rep.fail { border-color:rgba(255,77,109,.45); } .rep.fail::before { background:var(--bad); }
+  .rep.down { opacity:.6; border-style:dashed; } .rep.down::before { background:var(--dim); }
+  .rep-top { display:flex; align-items:center; gap:8px; font-family:var(--mono); font-size:13px; }
+  .rep-top .dot { width:8px; height:8px; border-radius:50%; background:var(--ok); box-shadow:0 0 8px var(--ok); flex:none; }
+  .rep.fail .dot { background:var(--bad); box-shadow:0 0 8px var(--bad); }
+  .rep.down .dot { background:var(--dim); box-shadow:none; }
+  @media (prefers-reduced-motion:no-preference) { .rep.down .dot { animation:beat 1s ease-in-out infinite; } }
+  .tags { margin-left:auto; display:flex; gap:4px; }
+  .tag { font-size:10px; color:var(--accent); border:1px solid rgba(34,211,238,.4); border-radius:4px; padding:1px 5px; white-space:nowrap; }
+  .tag.re { color:#f5b84b; border-color:rgba(245,184,75,.45); }
+  .rep-meta { font-family:var(--mono); font-size:11px; color:var(--muted); margin-top:6px; }
+  .rep-state { font-family:var(--mono); font-size:12px; margin-top:6px; letter-spacing:.06em; color:var(--ok); }
+  .rep.fail .rep-state { color:var(--bad); } .rep.down .rep-state { color:var(--muted); }
+  .mini { display:block; width:100%; height:34px; margin-top:10px; border-radius:4px; background:#080b10; border:1px solid var(--line); }
+  .rep-btns { display:flex; gap:6px; margin-top:10px; }
+  .rep-btns button { padding:4px 10px; font-size:11px; }
   .strip { display:flex; gap:3px; height:40px; align-items:stretch; margin-top:16px; }
   .strip i { flex:1; border-radius:1px; background:var(--ok); opacity:.75; }
   .strip i:last-child { opacity:1; box-shadow:0 0 8px var(--ok); }
@@ -115,13 +134,14 @@ const landingPage = `<!DOCTYPE html>
         <p>id <span id="cid">...</span> &nbsp;·&nbsp; uptime <span id="uptime">...</span> &nbsp;·&nbsp; v<span id="ver">...</span></p>
       </div>
       <div class="right">
+        <button id="crash" class="danger" hidden>Crash container</button>
         <button id="sim" class="danger" hidden>Simulate failure</button>
         <button id="check-now" class="primary">&#9656; Run check</button>
       </div>
     </div>
     <div class="ecg-wrap">
       <div class="row ecg-head">
-        <h2>Heartbeat</h2>
+        <h2>Heartbeat &middot; this replica</h2>
         <span class="ecg-meta"><span id="bpm">0</span> checks/min &nbsp;·&nbsp; <span id="signal" class="ok">signal ok</span></span>
       </div>
       <canvas id="ecg" aria-label="Heartbeat line: each spike is a health check" role="img"></canvas>
@@ -135,6 +155,16 @@ const landingPage = `<!DOCTYPE html>
     <div class="stat"><div class="label">Failures</div><div class="num" id="s-fails">0</div></div>
     <div class="stat"><div class="label">Last check</div><div class="num" id="s-last">-</div></div>
   </div>
+
+  <section>
+    <div class="row">
+      <h2>Fleet</h2>
+      <span class="legend" style="margin:0" id="fleet-sum">discovering replicas...</span>
+    </div>
+    <div class="sub">Every replica of the service, found via Docker DNS &middot; scale with <span class="mono" style="color:var(--accent)">docker compose up -d --scale pulse=N</span></div>
+    <div class="fleet" id="fleet"></div>
+    <div class="sub" id="fleet-empty" hidden>No replicas found.</div>
+  </section>
 
   <section>
     <div class="row"><h2>Recent checks</h2><span class="legend" style="margin:0" id="strip-count"></span></div>
@@ -213,6 +243,8 @@ async function loadInfo() {
   $("uptime").textContent = d.uptime;
   $("ver").textContent = d.app_version; $("tag-ver").textContent = "v" + d.app_version;
   $("sim").hidden = !d.demo_mode;
+  $("crash").hidden = !d.demo_mode;
+  demoMode = d.demo_mode;
   const f = [["Hostname",d.hostname],["Container ID",d.container_id_short],["IP address",(d.ip_addresses||[]).join(", ")||"n/a"],
     ["OS / arch",d.os+" / "+d.arch],["CPUs",d.cpus],["Memory (MB)",d.mem_alloc_mb],
     ["Goroutines",d.goroutines],["Go version",d.go_version],["PID",d.pid],["Started (UTC)",d.started_at.replace("T"," ").replace("Z","")]];
@@ -224,6 +256,11 @@ async function refresh() {
   catch (e) { $("updated").textContent = "Connection lost, retrying..."; $("root").classList.add("down"); $("status-word").textContent = "unreachable"; }
 }
 
+$("crash").addEventListener("click", async () => {
+  $("crash").textContent = "Crashing...";
+  try { await fetch("/api/crash", {method:"POST"}); } catch (e) {}
+  setTimeout(() => { $("crash").textContent = "Crash container"; }, 4000);
+});
 $("check-now").addEventListener("click", async () => { await runCheck(); refresh(); });
 $("sim").addEventListener("click", async () => {
   await fetch("/api/simulate", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({fail:!simOn})});
@@ -305,7 +342,9 @@ function draw() {
 
 let lastT = performance.now(), carry = 0;
 function frame(t) {
-  carry += Math.min(.1, (t - lastT) / 1000) * SPEED; lastT = t;
+  const dt = Math.min(.1, (t - lastT) / 1000);
+  carry += dt * SPEED; lastT = t;
+  stepMinis(dt);
   let n = Math.floor(carry); carry -= n;
   while (n-- > 0) { buf.push(nextSample()); if (buf.length > W) buf.shift(); }
   draw();
@@ -337,6 +376,119 @@ resize();
 addEventListener("resize", () => { resize(); draw(); });
 if (!reduceMotion) requestAnimationFrame(frame);
 pollPulse(); setInterval(pollPulse, 1000);
+
+// ---------- Fleet panel ----------
+// One card per replica, each with its own mini heartbeat: tall spike = that replica's
+// health check, small beat = it answered the 1s poll, red = unhealthy, flat = down.
+// Cards stay for 60s after a replica disappears so you can watch it come back.
+let demoMode = false;
+const seen = {};
+const MINI_SPEED = 45;
+
+function mkCard(s) {
+  s.el = document.createElement("div");
+  s.el.className = "rep";
+  s.el.innerHTML = '<div class="rep-top"><span class="dot"></span><span class="rid"></span><span class="tags"></span></div>' +
+    '<canvas class="mini" aria-hidden="true"></canvas><div class="rep-meta"></div><div class="rep-state"></div><div class="rep-btns"></div>';
+  s.cv = s.el.querySelector("canvas"); s.ctx = s.cv.getContext("2d"); s.w = 0; s.h = 0;
+}
+function miniResize(s) {
+  const dpr = window.devicePixelRatio || 1, w = Math.max(1, s.cv.clientWidth), h = Math.max(1, s.cv.clientHeight);
+  if (w === s.w && h === s.h) return;
+  s.w = w; s.h = h; s.cv.width = w * dpr; s.cv.height = h * dpr; s.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  while (s.buf.length < w) s.buf.unshift({y: 0, c: s.color});
+  if (s.buf.length > w) s.buf = s.buf.slice(-w);
+}
+function miniQueue(s, amp, failed) {
+  if (s.pending.length > 300) return;
+  for (let i = 0; i < 4; i++) s.pending.push({y: 0, c: failed ? 1 : 0});
+  s.pending.push(...beat(amp, failed ? 1 : 0, failed));
+}
+function miniNext(s) {
+  if (s.pending.length) return s.pending.shift();
+  if (s.color === 2) return {y: 0, c: 2};
+  return {y: (Math.random() - .5) * .02, c: s.color};
+}
+function drawMini(s) {
+  const g = s.ctx, H = s.h, base = H * .7, sc = H * .58;
+  g.clearRect(0, 0, s.w, H); g.lineWidth = 1.3; g.lineJoin = "round";
+  let i = 0;
+  while (i < s.buf.length - 1) {
+    const c = s.buf[i].c; g.beginPath(); g.moveTo(i, base - s.buf[i].y * sc);
+    let j = i + 1;
+    for (; j < s.buf.length; j++) { g.lineTo(j, base - s.buf[j].y * sc); if (s.buf[j].c !== c) break; }
+    g.strokeStyle = COLORS[c]; g.shadowColor = COLORS[c]; g.shadowBlur = c === 2 ? 0 : 6; g.stroke(); i = j;
+  }
+  g.shadowBlur = 0;
+}
+let miniCarry = 0;
+function stepMinis(dt) {
+  miniCarry += dt * MINI_SPEED;
+  let n = Math.floor(miniCarry); miniCarry -= n;
+  for (const s of Object.values(seen)) {
+    if (!s.cv || !s.el.isConnected) continue;
+    miniResize(s);
+    for (let k = 0; k < n; k++) { s.buf.push(miniNext(s)); if (s.buf.length > s.w) s.buf.shift(); }
+    drawMini(s);
+  }
+}
+
+async function loadFleet() {
+  let d;
+  try { d = await (await fetch("/api/fleet", {cache:"no-store"})).json(); } catch (e) { return; }
+  const now = Date.now(), live = new Set();
+  for (const r of d.replicas) {
+    if (!r.id) continue;
+    let s = seen[r.id];
+    const failed = r.status !== "ok";
+    if (!s) {
+      s = seen[r.id] = {restarts:0, prevUp:r.uptime_s, prevChecks:r.checks, downSince:0, buf:[], pending:[], color: failed ? 1 : 0};
+      mkCard(s);
+    } else {
+      const restarted = r.uptime_s < s.prevUp;
+      if (restarted) s.restarts++;
+      const fresh = Math.max(0, Math.min(3, r.checks - (restarted ? 0 : s.prevChecks)));
+      if (fresh) for (let k = 0; k < fresh; k++) miniQueue(s, 1, failed);
+      else miniQueue(s, .3, failed);
+    }
+    s.color = failed ? 1 : 0; s.r = r; s.prevUp = r.uptime_s; s.prevChecks = r.checks; s.downSince = 0;
+    live.add(r.id);
+  }
+  for (const s of Object.values(seen)) if (!live.has(s.r.id) && !s.downSince) { s.downSince = now; s.pending = []; s.color = 2; }
+
+  const fl = $("fleet");
+  let up = 0, healthy = 0;
+  for (const [id, s] of Object.entries(seen).sort((a, b) => a[0].localeCompare(b[0]))) {
+    const gone = !live.has(id), r = s.r;
+    if (gone && now - s.downSince > 60000) { s.el.remove(); delete seen[id]; continue; }
+    if (!gone) { up++; if (r.status === "ok") healthy++; }
+    s.el.className = "rep " + (gone ? "down" : (r.status === "ok" ? "" : "fail"));
+    s.el.querySelector(".rid").textContent = id;
+    s.el.querySelector(".tags").innerHTML = (r.self ? '<span class="tag">this page</span>' : '') +
+      (s.restarts ? '<span class="tag re">restarted &times;' + s.restarts + '</span>' : '');
+    s.el.querySelector(".rep-meta").innerHTML = esc(r.ip || r.addr) + ' &middot; up ' + (gone ? "-" : esc(r.uptime));
+    s.el.querySelector(".rep-state").innerHTML = gone ? "DOWN &middot; restarting..." : (r.status === "ok" ? "HEALTHY" : "UNHEALTHY");
+    s.el.querySelector(".rep-btns").innerHTML = (demoMode && !gone) ?
+      '<button class="danger" data-act="kill" data-addr="' + esc(r.addr) + '">Kill</button>' +
+      '<button data-act="' + (r.simulate_fail ? "recover" : "fail") + '" data-addr="' + esc(r.addr) + '">' + (r.simulate_fail ? "Recover" : "Fail") + '</button>' : '';
+    fl.appendChild(s.el); // keeps sorted order; canvas is preserved
+    if (reduceMotion) { miniResize(s); while (s.pending.length) s.buf.push(s.pending.shift()); for (let k = 0; k < 20; k++) s.buf.push(miniNext(s)); s.buf = s.buf.slice(-s.w); drawMini(s); }
+  }
+  $("fleet-empty").hidden = up > 0 || Object.keys(seen).length > 0;
+  $("fleet-sum").textContent = up + (up === 1 ? " replica" : " replicas") + " up · " + healthy + " healthy";
+}
+
+$("fleet").addEventListener("click", async e => {
+  const b = e.target.closest("button[data-act]");
+  if (!b) return;
+  b.disabled = true; b.textContent = "...";
+  try {
+    await fetch("/api/fleet/action", {method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({addr: b.dataset.addr, action: b.dataset.act})});
+  } catch (err) {}
+  setTimeout(loadFleet, 250);
+});
+loadFleet(); setInterval(loadFleet, 1000);
 
 runCheck().then(refresh);
 setInterval(refresh, 5000);
