@@ -34,7 +34,7 @@ Pulse is a tiny web app that reports on its own container: live health status, a
 | Stage | Image | Why |
 |---|---|---|
 | Build | `golang:1.24.13-alpine` | Official Go toolchain, pinned to an exact version so builds are repeatable |
-| Runtime | `scratch` (empty) | Only the static binary is shipped: no shell, package manager or OS libraries, so the image is about **6 MB** and has almost no attack surface |
+| Runtime | `scratch` (empty) | Only the static binary is shipped: no shell, package manager or OS libraries, so the image is **9.5 MB on disk (2.85 MB compressed)** and has almost no attack surface |
 
 Because `scratch` has no `curl` or `wget`, the health check is built into the binary: `/app -healthcheck` calls `/healthz` and exits `0` or `1`.
 
@@ -215,7 +215,7 @@ Add `--rmi local` to also delete the built image.
 
 ### What the AI produced correctly
 
-- Multi-stage build onto `scratch`, giving a ~6 MB static binary with no shell or OS packages
+- Multi-stage build onto `scratch`, giving a 9.5 MB image (2.85 MB compressed) with no shell or OS packages
 - Non-root runtime user (`USER 65534:65534`)
 - A health check that works without `curl` (the binary checks itself with `-healthcheck`)
 - Graceful shutdown on `SIGTERM`, so `docker stop` and scale-down are clean
@@ -241,9 +241,9 @@ Add `--rmi local` to also delete the built image.
 | # | Check | How | Expected | Result |
 |---|---|---|---|---|
 | 1 | Image builds | `docker compose build` | Build succeeds | ✅ Built on Docker Desktop (Windows) |
-| 2 | Image size | `docker images pulse` | Under 10 MB | ⬜ ___ MB |
-| 3 | Non-root user (image) | `docker image inspect pulse:1.0.0 --format "{{.Config.User}}"` | `65534:65534` | ⬜ |
-| 4 | Non-root user (running) | `docker top <container>` | UID `65534`, not `root` | ⬜ |
+| 2 | Image size | `docker images pulse` | Under 10 MB | ✅ 9.52 MB disk usage, 2.85 MB content size |
+| 3 | Non-root user (image) | `docker image inspect pulse:1.0.0 --format "{{.Config.User}}"` | `65534:65534` | ✅ `65534:65534` |
+| 4 | Non-root user (running) | `docker top pulse-pulse-1` | UID `nobody` (65534), not `root` | ✅ UID `nobody`, CMD `/app` |
 | 5 | Health endpoint | `curl -i localhost:8080/healthz` | `200 OK`, `"status": "ok"` | ✅ Dashboard and Docker checks all OK |
 | 6 | Docker health status | `docker ps` | `(healthy)` | ✅ `Up 14 minutes (healthy)` |
 | 7 | Failure detection | Simulate failure, wait ~45s, `docker ps` | `(unhealthy)` | ✅ `Up 10 minutes (unhealthy)` |
@@ -253,7 +253,7 @@ Add `--rmi local` to also delete the built image.
 | 11 | Self-healing (crash) | `curl -X POST .../api/crash` or **Kill** in the Fleet panel | Replica restarts on its own; RestartCount +1; healthy again | ✅ `/pulse-pulse-2 restarts=1`, `Up 5 seconds (healthy)` |
 | 11b | Manual kill | `docker kill pulse-pulse-2`, then `docker compose up -d --scale pulse=4` | Stays down (intentional stop); `compose up` restores it | ✅ Removed from `ps` after kill; back and `(healthy)` after `compose up` |
 | 12a | Fleet view | Open any replica's dashboard after scaling | Fleet panel shows a card for every replica | ✅ 4 cards, 4 healthy, distinct IPs via Docker DNS |
-| 12 | Resource limits | `docker stats --no-stream` | MEM LIMIT shows 64MiB | ⬜ |
+| 12 | Resource limits | `docker stats --no-stream` | MEM LIMIT shows 64MiB | ✅ Limit 64MiB on all 4 replicas; usage 4.5–9.0 MiB, CPU under 2% |
 | 13 | Teardown | `docker compose down` | No pulse containers left | ⬜ |
 
 ## Trade-offs
