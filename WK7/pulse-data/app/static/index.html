@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pulse Data</title>
+<link rel="icon" href="data:,">
+<style>
+  :root { --bg:#07090d; --card:#0c1016; --card2:#10151d; --line:#1a212c; --line2:#243041; --text:#d7dee8; --muted:#6b7686; --dim:#465162;
+          --accent:#22d3ee; --ok:#2ee59d; --bad:#ff4d6d; --warn:#f5b84b; --mono:"JetBrains Mono","SF Mono",ui-monospace,Menlo,Consolas,monospace; }
+  * { box-sizing:border-box; }
+  html { color-scheme:dark; scrollbar-color:var(--line2) transparent; scrollbar-width:thin; }
+  body { margin:0; font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif; color:var(--text); background:var(--bg);
+         background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
+         background-size:40px 40px; background-attachment:fixed; }
+  main { max-width:1100px; margin:0 auto; padding:0 20px 40px; }
+  .mono, h1, h2, button, input, select, th, td, .tab, .log, label { font-family:var(--mono); }
+  .topbar { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; padding:18px 0; margin-bottom:20px; border-bottom:1px solid var(--line); }
+  .brand { font-family:var(--mono); font-size:14px; } .brand b { color:var(--accent); font-weight:500; }
+  .brand span { color:var(--muted); font-size:12px; }
+  .tabs { display:flex; gap:6px; }
+  .tab { border:1px solid var(--line2); background:var(--card2); color:var(--muted); padding:8px 14px; border-radius:6px; cursor:pointer; font-size:12px; }
+  .tab.on { color:var(--accent); border-color:var(--accent); background:rgba(34,211,238,.07); }
+  section { background:rgba(12,16,22,.94); border:1px solid var(--line); border-radius:8px; padding:18px; margin-bottom:16px; min-width:0; }
+  h2 { margin:0 0 4px; font-size:12px; font-weight:500; text-transform:uppercase; letter-spacing:.12em; color:var(--muted); }
+  h2::before { content:"// "; color:var(--accent); }
+  .sub { font-size:12px; color:var(--dim); margin:0 0 12px; }
+  .grid2 { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:16px; }
+  @media (max-width:820px) { .grid2 { grid-template-columns:1fr; } }
+  form { display:flex; gap:8px; flex-wrap:wrap; align-items:flex-start; }
+  .field { display:flex; flex-direction:column; gap:4px; flex:1 1 160px; min-width:0; }
+  label { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.1em; }
+  input, select { width:100%; background:#080b10; color:var(--text); border:1px solid var(--line2); border-radius:6px; padding:9px 10px; font-size:13px; min-width:0; }
+  input:focus, select:focus { outline:none; border-color:var(--accent); }
+  input.invalid { border-color:var(--bad); }
+  .err { color:var(--bad); font-size:12px; font-family:var(--mono); min-height:16px; width:100%; margin-top:4px; overflow-wrap:anywhere; }
+  button { font-size:12px; border-radius:6px; padding:9px 14px; cursor:pointer; border:1px solid var(--line2); background:var(--card2); color:var(--text); white-space:nowrap; }
+  button.primary { border-color:var(--accent); color:var(--accent); background:rgba(34,211,238,.06); }
+  button.danger { border-color:rgba(255,77,109,.5); color:var(--bad); background:rgba(255,77,109,.05); }
+  button.small { padding:5px 9px; font-size:11px; }
+  button:hover { filter:brightness(1.25); }
+  .form-btn { align-self:flex-end; }
+  table { width:100%; border-collapse:collapse; font-size:12px; table-layout:fixed; }
+  th { text-align:left; font-weight:400; color:var(--dim); font-size:10px; text-transform:uppercase; letter-spacing:.1em; padding:0 8px 8px; border-bottom:1px solid var(--line2); }
+  td { padding:9px 8px; border-bottom:1px solid var(--line); vertical-align:top; overflow-wrap:anywhere; word-break:break-word; }
+  tr.sel td { background:rgba(34,211,238,.05); }
+  .st { display:inline-flex; align-items:center; gap:6px; }
+  .st::before { content:""; width:6px; height:6px; border-radius:50%; background:currentColor; flex:none; }
+  .st.running, .st.ok { color:var(--ok); } .st.stopped { color:var(--muted); } .st.unhealthy, .st.fail { color:var(--bad); }
+  .acts { display:flex; gap:6px; flex-wrap:wrap; }
+  .empty { color:var(--dim); font-size:12px; padding:10px 8px; }
+  .detail-head { display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; align-items:flex-start; }
+  .detail-head h3 { margin:0; font-family:var(--mono); font-size:16px; font-weight:500; overflow-wrap:anywhere; }
+  .meta { font-family:var(--mono); font-size:11px; color:var(--muted); margin-top:4px; overflow-wrap:anywhere; }
+  .badge { font-family:var(--mono); font-size:10px; color:var(--accent); border:1px solid rgba(34,211,238,.4); border-radius:4px; padding:2px 6px; display:inline-block; margin-top:6px; }
+  .block { border-top:1px dashed var(--line2); margin-top:14px; padding-top:14px; }
+  .qa { display:flex; gap:8px; flex-wrap:wrap; }
+  .log { max-height:260px; overflow:auto; font-size:12px; }
+  .log div { display:grid; grid-template-columns:70px 64px 1fr; gap:10px; padding:6px 2px; border-bottom:1px solid var(--line); }
+  .log .code { font-weight:600; } .c2 { color:var(--ok); } .c4 { color:var(--warn); } .c5 { color:var(--bad); }
+  .log .msg { color:var(--muted); overflow-wrap:anywhere; }
+  pre { background:#080b10; border:1px solid var(--line); border-radius:6px; padding:10px; font-size:11px; color:#b8c2cf; max-height:240px; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; margin:10px 0 0; }
+  /* mobile: tables become stacked cards */
+  @media (max-width:640px) {
+    main { padding:0 12px 30px; }
+    table, thead, tbody, tr, td { display:block; width:100%; }
+    thead { display:none; }
+    tr { border:1px solid var(--line); border-radius:6px; margin-bottom:8px; padding:4px 0; }
+    td { border:none; padding:5px 10px; display:grid; grid-template-columns:90px minmax(0,1fr); gap:8px; }
+    td::before { content:attr(data-l); color:var(--dim); font-size:10px; text-transform:uppercase; letter-spacing:.08em; }
+    .log div { grid-template-columns:56px 48px 1fr; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <div class="topbar">
+    <div class="brand"><b>&#9673;</b> pulse data <span>// polyglot persistence</span></div>
+    <div class="tabs" role="tablist">
+      <button class="tab on" data-engine="sql" role="tab">PostgreSQL</button>
+      <button class="tab" data-engine="nosql" role="tab">MongoDB</button>
+    </div>
+  </div>
+
+  <section>
+    <h2>Create container</h2>
+    <p class="sub" id="engine-note"></p>
+    <form id="create-form" novalidate>
+      <div class="field"><label for="c-name">Name</label><input id="c-name" maxlength="300" placeholder="web-1"></div>
+      <div class="field"><label for="c-image">Image</label><input id="c-image" maxlength="300" placeholder="pulse:1.0.0"></div>
+      <button class="primary form-btn" type="submit">Create</button>
+      <div class="err" id="create-err"></div>
+    </form>
+  </section>
+
+  <div class="grid2">
+    <section>
+      <h2>Containers</h2>
+      <p class="sub" id="list-note">List: one query per engine</p>
+      <table>
+        <thead><tr><th style="width:30%">Name</th><th style="width:26%">Image</th><th style="width:18%">Status</th><th style="width:10%">Checks</th><th style="width:16%"></th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </section>
+
+    <section id="detail">
+      <h2>Container detail</h2>
+      <div id="detail-body"><p class="empty">Select a container to see it with its health checks.</p></div>
+    </section>
+  </div>
+
+  <section>
+    <h2>QA tests</h2>
+    <p class="sub">Each button sends a real request; watch the status codes in the response log and in DevTools &rarr; Network.</p>
+    <div class="qa">
+      <button id="qa-empty">Empty name &rarr; 400</button>
+      <button id="qa-long">Long name &rarr; 400</button>
+      <button id="qa-404">Unknown id &rarr; 404</button>
+      <button id="qa-orphan" class="danger">Orphan check (invalid FK)</button>
+      <button id="qa-rollback" class="danger">Transaction rollback (SQL)</button>
+    </div>
+  </section>
+
+  <section>
+    <div class="detail-head"><h2>Response log</h2><button class="small" id="clear-log">Clear</button></div>
+    <div class="log" id="log"><div><span></span><span></span><span class="msg">Requests appear here.</span></div></div>
+    <pre id="last">Last response body</pre>
+  </section>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const when = t => t ? new Date(t).toLocaleString() : "-";
+let engine = "sql", selected = null;
+
+const NOTES = {
+  sql: "PostgreSQL: normalized tables, foreign key with ON DELETE CASCADE, parameterized queries.",
+  nosql: "MongoDB: one document per container, checks embedded in an array (single-query reads)."
+};
+
+async function api(method, path, payload, quiet) {
+  const url = "/api/" + engine + path;
+  let res, data;
+  try {
+    res = await fetch(url, {method, headers: payload ? {"Content-Type":"application/json"} : {}, body: payload ? JSON.stringify(payload) : undefined});
+    data = await res.json().catch(() => ({}));
+  } catch (e) { logLine(method, url, 0, "network error"); return {ok:false, status:0, data:{error:"network error"}}; }
+  logLine(method, url, res.status, data.error || (res.ok ? "ok" : ""));
+  if (!quiet) $("last").textContent = JSON.stringify(data, null, 2); // background list reloads don't hide the result of the action
+  return {ok: res.ok, status: res.status, data};
+}
+
+function logLine(method, url, status, msg) {
+  const cls = status >= 500 || status === 0 ? "c5" : status >= 400 ? "c4" : "c2";
+  const d = document.createElement("div");
+  d.innerHTML = '<span>' + esc(method) + '</span><span class="code ' + cls + '">' + (status || "ERR") + '</span><span class="msg">' + esc(url) + (msg ? " · " + esc(msg) : "") + '</span>';
+  const log = $("log");
+  if (log.firstChild && !log.firstChild.firstChild.textContent) log.innerHTML = "";
+  log.prepend(d);
+}
+
+async function loadList() {
+  const r = await api("GET", "/containers", null, true);
+  const list = r.ok ? r.data : [];
+  $("rows").innerHTML = list.length ? list.map(c =>
+    '<tr class="' + (c.id === selected ? "sel" : "") + '">' +
+    '<td data-l="Name">' + esc(c.name) + '</td>' +
+    '<td data-l="Image" class="mono">' + esc(c.image) + '</td>' +
+    '<td data-l="Status"><span class="st ' + esc(c.status) + '">' + esc(c.status) + '</span></td>' +
+    '<td data-l="Checks">' + c.check_count + '</td>' +
+    '<td data-l=""><div class="acts"><button class="small" data-open="' + esc(c.id) + '">Open</button>' +
+    '<button class="small danger" data-del="' + esc(c.id) + '">Delete</button></div></td></tr>').join("")
+    : '<tr><td colspan="5" class="empty">No containers in ' + (engine === "sql" ? "PostgreSQL" : "MongoDB") + ' yet.</td></tr>';
+}
+
+async function openDetail(id) {
+  selected = id;
+  const r = await api("GET", "/containers/" + id);
+  if (!r.ok) { selected = null; $("detail-body").innerHTML = '<p class="empty">Not found (deleted?).</p>'; loadList(); return; }
+  const c = r.data;
+  $("detail-body").innerHTML =
+    '<div class="detail-head"><div><h3>' + esc(c.name) + '</h3>' +
+    '<div class="meta">' + esc(c.id) + '</div>' +
+    '<div class="meta">' + esc(c.image) + ' · updated ' + esc(when(c.updated_at)) + '</div>' +
+    '<span class="badge">' + esc(c.query) + '</span></div>' +
+    '<span class="st ' + esc(c.status) + '">' + esc(c.status) + '</span></div>' +
+
+    '<div class="block"><form id="edit-form" novalidate>' +
+    '<div class="field"><label for="e-name">Name</label><input id="e-name" maxlength="300" value="' + esc(c.name) + '"></div>' +
+    '<div class="field" style="flex:0 1 150px"><label for="e-status">Status</label><select id="e-status">' +
+    ["running","stopped","unhealthy"].map(s => '<option' + (s === c.status ? " selected" : "") + '>' + s + '</option>').join("") +
+    '</select></div><button class="primary form-btn" type="submit">Save</button><div class="err" id="edit-err"></div></form></div>' +
+
+    '<div class="block"><form id="check-form" novalidate>' +
+    '<div class="field" style="flex:0 1 100px"><label for="k-status">Check</label><select id="k-status"><option>ok</option><option>fail</option></select></div>' +
+    '<div class="field" style="flex:0 1 110px"><label for="k-lat">Latency ms</label><input id="k-lat" inputmode="decimal" value="1.2"></div>' +
+    '<div class="field"><label for="k-detail">Detail</label><input id="k-detail" maxlength="800" placeholder="optional"></div>' +
+    '<button class="primary form-btn" type="submit">Add check</button><div class="err" id="check-err"></div></form></div>' +
+
+    '<div class="block"><table><thead><tr><th style="width:18%">Status</th><th style="width:18%">Latency</th><th style="width:30%">Detail</th><th style="width:34%">Checked</th></tr></thead><tbody>' +
+    (c.checks.length ? c.checks.map(k =>
+      '<tr><td data-l="Status"><span class="st ' + esc(k.status) + '">' + esc(k.status) + '</span></td>' +
+      '<td data-l="Latency">' + esc(k.latency_ms) + ' ms</td><td data-l="Detail">' + (esc(k.detail) || '<span style="color:var(--dim)">-</span>') + '</td>' +
+      '<td data-l="Checked">' + esc(when(k.checked_at)) + '</td></tr>').join("")
+      : '<tr><td colspan="4" class="empty">No checks yet.</td></tr>') +
+    '</tbody></table></div>';
+
+  $("edit-form").addEventListener("submit", async e => {
+    e.preventDefault();
+    const name = $("e-name").value.trim();
+    if (!name) { $("e-name").classList.add("invalid"); $("edit-err").textContent = "Name cannot be empty."; return; }
+    const r = await api("PATCH", "/containers/" + id, {name, status: $("e-status").value});
+    if (!r.ok) { $("edit-err").textContent = r.data.error || "Save failed."; return; }
+    openDetail(id); loadList();
+  });
+  $("check-form").addEventListener("submit", async e => {
+    e.preventDefault();
+    const lat = Number($("k-lat").value);
+    if ($("k-lat").value.trim() === "" || !isFinite(lat) || lat < 0) { $("k-lat").classList.add("invalid"); $("check-err").textContent = "Latency must be a number ≥ 0."; return; }
+    const r = await api("POST", "/containers/" + id + "/checks", {status: $("k-status").value, latency_ms: lat, detail: $("k-detail").value});
+    if (!r.ok) { $("check-err").textContent = r.data.error || "Could not add check."; return; }
+    openDetail(id); loadList();
+  });
+  ["e-name","k-lat","k-detail"].forEach(f => $(f).addEventListener("input", () => { $(f).classList.remove("invalid"); $("edit-err").textContent = ""; $("check-err").textContent = ""; }));
+  loadList();
+}
+
+$("create-form").addEventListener("submit", async e => {
+  e.preventDefault();
+  const name = $("c-name").value.trim(), image = $("c-image").value.trim();
+  $("c-name").classList.toggle("invalid", !name); $("c-image").classList.toggle("invalid", !image);
+  if (!name || !image) { $("create-err").textContent = "Name and image are required."; return; }
+  const r = await api("POST", "/containers", {name, image});
+  if (!r.ok) { $("create-err").textContent = r.data.error || "Create failed."; return; }
+  $("c-name").value = ""; $("c-image").value = ""; $("create-err").textContent = "";
+  openDetail(r.data.id);
+});
+["c-name","c-image"].forEach(f => $(f).addEventListener("input", () => { $(f).classList.remove("invalid"); $("create-err").textContent = ""; }));
+
+$("rows").addEventListener("click", async e => {
+  const o = e.target.closest("[data-open]"), d = e.target.closest("[data-del]");
+  if (o) openDetail(o.dataset.open);
+  if (d) {
+    await api("DELETE", "/containers/" + d.dataset.del);
+    if (selected === d.dataset.del) { selected = null; $("detail-body").innerHTML = '<p class="empty">Deleted. Select another container.</p>'; }
+    loadList();
+  }
+});
+
+document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => {
+  engine = t.dataset.engine; selected = null;
+  document.querySelectorAll(".tab").forEach(x => x.classList.toggle("on", x === t));
+  $("engine-note").textContent = NOTES[engine];
+  $("qa-rollback").hidden = engine !== "sql";
+  $("detail-body").innerHTML = '<p class="empty">Select a container to see it with its health checks.</p>';
+  loadList();
+}));
+
+const uuid = () => crypto.randomUUID ? crypto.randomUUID() : "00000000-0000-4000-8000-" + Date.now().toString(16).padStart(12, "0").slice(-12);
+$("qa-empty").onclick = () => api("POST", "/containers", {name: "", image: "x"});
+$("qa-long").onclick = () => api("POST", "/containers", {name: "x".repeat(150), image: "x"});
+$("qa-404").onclick = () => api("GET", "/containers/" + uuid());
+$("qa-orphan").onclick = () => api("POST", "/containers/" + uuid() + "/checks", {status: "ok", latency_ms: 1});
+$("qa-rollback").onclick = () => api("POST", "/qa/transaction-rollback");
+$("clear-log").onclick = () => { $("log").innerHTML = '<div><span></span><span></span><span class="msg">Requests appear here.</span></div>'; };
+
+$("engine-note").textContent = NOTES[engine];
+loadList();
+</script>
+</body>
+</html>

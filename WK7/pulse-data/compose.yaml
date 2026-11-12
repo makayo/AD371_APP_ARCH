@@ -1,0 +1,70 @@
+# Pulse Data: polyglot persistence stack
+#   docker compose up -d --build     start PostgreSQL, MongoDB and the API
+#   docker compose down              stop (data kept in volumes)
+#   docker compose down -v           stop and delete all data
+name: pulse-data
+
+services:
+  postgres:
+    image: postgres:16.4-alpine
+    environment:
+      POSTGRES_DB: pulse
+      POSTGRES_USER: pulse
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pulse_dev_password}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Runs once, on the first start with an empty volume
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pulse -d pulse"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  mongo:
+    image: mongo:7.0
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: pulse
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-pulse_dev_password}
+    volumes:
+      - mongodata:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  app:
+    build: .
+    image: pulse-data:1.0.0
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://pulse:${POSTGRES_PASSWORD:-pulse_dev_password}@postgres:5432/pulse
+      MONGO_URL: mongodb://pulse:${MONGO_PASSWORD:-pulse_dev_password}@mongo:27017/?authSource=admin
+      MONGO_DB: pulse
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+    restart: unless-stopped
+    # Hardening (same approach as Pulse)
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+
+# The databases publish no host ports; only the API is reachable from outside.
+volumes:
+  pgdata:
+  mongodata:
