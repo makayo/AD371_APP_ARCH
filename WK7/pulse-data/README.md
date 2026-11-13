@@ -376,7 +376,7 @@ pulse-data/
 
 **AI tool used:** Claude (Anthropic), Claude Opus 5.5 in the Claude app. It generated the schemas, API, UI, test suite and Docker files. I chose the domain and the scope, ran the build and the tests on my machine, and reviewed the output against the audit checklist above.
 
-### Prompts (spelling and grammar corrected)
+### Prompts (paraphrased)
 
 1. Provided this assignment ("Polyglot Persistence: Schema Modeling & CRUD in SQL and NoSQL") and asked: "Let's start this"
 2. "Let's talk about systems: what I already have, and am I able to use these?"
@@ -385,4 +385,4 @@ pulse-data/
 5. "Add the screenshots I gave you into the screenshots folder."
 6. "Make sure the README connects to each screenshot with a storyline from start to finish so readers can follow easily."
 7. "Do the images depict the walkthrough statements? Are we using the correct images from start to finish?"
-8. " "Review this" (requirements: side-by-side data models and a flaw caught in the AI draft, the SQL and NoSQL CLI walkthroughs, round trips, QA checklist and an SQL vs NoSQL heuristic)
+8. "Review this" (requirements: side-by-side data models and a flaw caught in the AI draft, the SQL and NoSQL CLI walkthroughs, round trips, QA checklist and an SQL vs NoSQL heuristic)
