@@ -345,13 +345,13 @@ Automated coverage: `tests/test_qa.py`. Tick each row after running it yourself.
 |---|---|---|
 | Desktop and mobile (DevTools device toolbar, e.g. iPhone 12) | Tables render on desktop; stacked cards on mobile, no horizontal scrolling | ✅ 375 px (iPhone 12): forms, tables and logs fit with no horizontal scrolling; both tabs and both themes work |
 | Empty inputs | Inline "Name and image are required."; no request sent | ⬜ |
-| Long text | A very long name wraps without clipping; API rejects names over 100 characters with `400` | ⬜ |
+| Long text | A very long name wraps without clipping; API rejects names over 100 characters with `400` | ✅ 82-character name wraps in the list (5 lines) and the detail title (2 lines) without clipping; names over 100 characters return 400 |
 
 **4. Browser console & terminal health**
 
 | Test | Expected | Result |
 |---|---|---|
-| DevTools → Network | `200` reads, `201` creates, `400` bad input/FK, `404` unknown id, `409` duplicate | ⬜ |
+| DevTools → Network | `200` reads, `201` creates, `400` bad input/FK, `404` unknown id, `409` duplicate | ✅ Network tab (Fetch/XHR): 400 for empty and long names, 404 for unknown ids and the MongoDB orphan check; 200 and 201 seen in the response log; 409 covered by the automated suite |
 | `docker compose logs app` | `SQL … %s … \| params=[…]` lines; no driver warnings, no connection errors | ✅ SQL logged with placeholders and a separate params list; no warnings or connection errors |
 | QA suite | `Ran 14 tests … OK` | ✅ `Ran 14 tests in 0.691s OK` against live PostgreSQL 16 and MongoDB 7 |
 
