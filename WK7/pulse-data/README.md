@@ -4,7 +4,7 @@ Pulse Data stores **containers** and their **health checks** in two databases at
 
 It builds on [Pulse](../../WK6/pulse) (WK6), which monitored container health in memory; Pulse Data makes that data persistent.
 
-**Reading order:** [Architecture](#architecture) → [Data models](#data-models) → [Walkthrough](#walkthrough) (screenshots, step by step) → [AI output audit](#ai-output-audit) → [Run guide](#run-guide) → [QA checklist](#qa-checklist).
+**Reading order:** [Architecture](#architecture) → [Data models](#data-models) → [Walkthrough](#walkthrough) (screenshots, step by step) → [AI output audit](#ai-output-audit) → [When to choose SQL vs NoSQL](#when-to-choose-sql-vs-nosql-for-this-domain) → [Run guide](#run-guide) → [QA checklist](#qa-checklist).
 
 ## Architecture
 
@@ -38,6 +38,10 @@ All three run in Docker Compose. Only the API publishes a port; the databases ar
 | Fast "show this container with its recent checks" reads | MongoDB | The whole aggregate lives in one document, so a read is one `find_one` with no joins |
 
 ## Data models
+
+The same domain, modeled two ways:
+
+![PostgreSQL ER model and MongoDB document model, side by side](screenshots/data-models.png)
 
 ### Relational (PostgreSQL), third normal form
 
@@ -229,6 +233,19 @@ The AI's draft was checked against the assignment's Data Architecture Audit Chec
 | An embedded array that grows forever is a known MongoDB anti-pattern | NoSQL design | `$push` with `$slice: -100` caps the array |
 | After a delete, the automatic list refresh replaced the delete response in the UI, hiding `cascaded_checks` / `remaining_checks` | UI / QA visibility | Background list reloads are logged but no longer overwrite the response panel |
 
+## When to choose SQL vs NoSQL (for this domain)
+
+**Heuristic:** choose by *how the data is read* and *what bad data would cost*.
+
+| Choose | When | In Pulse Data |
+|---|---|---|
+| **PostgreSQL (SQL)** | The relationship itself must be guaranteed; child records are queried on their own or across parents; you need reporting and multi-row transactions | Health-check **history**: "every check belongs to a real container", "all failed checks across the fleet in the last hour", audits. A foreign key and a JOIN make these safe and simple |
+| **MongoDB (NoSQL)** | Data is read and written as one unit; children have no life outside the parent; the child list is bounded | The **dashboard view**: "show this container with its latest checks" is one `find_one`, and adding a check is one atomic `$push` |
+
+**Rule of thumb:** if children are always accessed through their parent and stay bounded, **embed** them (document). If they're queried independently, shared, or grow without limit, give them their **own table with a foreign key** (relational).
+
+For this domain, PostgreSQL is the better system of record, because health history needs guaranteed integrity and cross-container queries. MongoDB fits the per-container dashboard read model.
+
 ## Prerequisites
 
 - Docker Desktop with Docker Compose v2 (`docker compose version`)
@@ -266,12 +283,40 @@ docker compose logs -f app
 
 Every SQL statement is logged with its `%s` placeholders and the separately bound parameter list.
 
-**Inspect the databases directly**
+**Inspect the databases directly (CLI)**
+
+PostgreSQL: table structure, the rows in both tables, and the joined view the API returns:
 
 ```bash
 docker compose exec postgres psql -U pulse -d pulse -c "\d health_checks"
-docker compose exec mongo mongosh -u pulse -p pulse_dev_password --quiet --eval "db.getSiblingDB('pulse').containers.findOne()"
+docker compose exec postgres psql -U pulse -d pulse -c "SELECT id, name, image, status, updated_at FROM containers;"
+docker compose exec postgres psql -U pulse -d pulse -c "SELECT container_id, status, latency_ms, detail, checked_at FROM health_checks ORDER BY checked_at;"
+docker compose exec postgres psql -U pulse -d pulse -c "SELECT c.name, h.status, h.latency_ms, h.detail FROM containers c JOIN health_checks h ON h.container_id = c.id ORDER BY h.checked_at;"
 ```
+
+PostgreSQL itself blocking an orphan row, with no API involved:
+
+```bash
+docker compose exec postgres psql -U pulse -d pulse -c "INSERT INTO health_checks (container_id, status, latency_ms) VALUES (gen_random_uuid(), 'ok', 1);"
+# ERROR:  insert or update on table "health_checks" violates foreign key constraint "health_checks_container_id_fkey"
+```
+
+MongoDB: the whole document, and how many there are:
+
+```bash
+docker compose exec mongo mongosh -u pulse -p pulse_dev_password --quiet --eval "db.getSiblingDB('pulse').containers.find().toArray()"
+docker compose exec mongo mongosh -u pulse -p pulse_dev_password --quiet --eval "db.getSiblingDB('pulse').containers.countDocuments()"
+```
+
+**See the round trips per read**
+
+Open one container in the UI, then look at what each engine ran to load it:
+
+```bash
+docker compose logs app | grep -E "SQL SELECT c.id|MONGO containers.find_one" | tail -4
+```
+
+PostgreSQL loads the container and its checks with one `LEFT JOIN`; MongoDB with one `find_one`. If MongoDB stored checks in a separate collection (the "SQL-shaped NoSQL" anti-pattern), the same screen would need two round trips, `find_one` on `containers` and then `find` on `checks`, joined in the application.
 
 **Tear down**
 
@@ -355,7 +400,7 @@ pulse-data/
 ├── Dockerfile           # Python 3.12 slim, non-root user, health check
 ├── compose.yaml         # postgres + mongo + app, volumes, health checks, hardening
 ├── requirements.txt     # pinned dependencies
-└── screenshots/       # images for this README
+└── screenshots/       # images for this README, including data-models.png
 ```
 
 ## AI disclosure & prompt log
@@ -367,3 +412,8 @@ pulse-data/
 1. Provided this assignment ("Polyglot Persistence: Schema Modeling & CRUD in SQL and NoSQL") and asked: "Now I need to do this."
 2. "Let's talk about systems: what I already have, and am I able to use these?"
 3. "Use Pulse." (Chose the Pulse domain: containers and health checks, built with Python and Flask, PostgreSQL and MongoDB in Docker Compose.)
+4. "Do I do this first?" (resetting both databases before testing), and shared screenshots and terminal output from each test run (SQL and MongoDB CRUD, QA buttons, `psql` and `mongosh` checks) for review.
+5. "Add the screenshots I gave you into the screenshots folder."
+6. "Make sure the README connects to each screenshot with a storyline from start to finish so readers can follow easily."
+7. "Do the images depict the walkthrough statements? Are we using the correct images from start to finish?"
+8. "Do I have this?" (side-by-side data models and a flaw caught in the AI draft) and "Do that and check these as well." (the remaining video requirements: SQL and NoSQL CLI walkthroughs, round trips, QA checklist and an SQL vs NoSQL heuristic)
