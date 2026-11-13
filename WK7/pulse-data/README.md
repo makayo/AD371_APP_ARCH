@@ -39,54 +39,23 @@ All three run in Docker Compose. Only the API publishes a port; the databases ar
 
 ## Data models
 
-The same domain, modeled two ways:
+The same domain, modeled two ways. **Left:** PostgreSQL, two normalized tables linked by a foreign key. **Right:** MongoDB, one document per container with its checks embedded. **Below:** how each model handles the same operations.
 
 ![PostgreSQL ER model and MongoDB document model, side by side](screenshots/data-models.png)
 
-### Relational (PostgreSQL), third normal form
-
-```
-containers                              health_checks
-──────────────────────────────          ──────────────────────────────────────
-id          UUID  PK                ┌──<  id            UUID  PK
-name        TEXT  UNIQUE NOT NULL   │    container_id  UUID  NOT NULL
-image       TEXT  NOT NULL          │                  FK → containers.id ON DELETE CASCADE
-status      TEXT  CHECK (running |  │    status        TEXT  CHECK (ok | fail)
-                  stopped|unhealthy)│    latency_ms    NUMERIC(10,2) CHECK (>= 0)
-created_at  TIMESTAMPTZ             │    detail        TEXT  (≤ 500 chars)
-updated_at  TIMESTAMPTZ (trigger) ──┘    checked_at    TIMESTAMPTZ
-
-INDEX idx_health_checks_container_checked ON health_checks (container_id, checked_at DESC)
-```
+### Left: PostgreSQL, relational (third normal form)
 
 - **3NF:** every non-key column depends only on its own table's key. Container facts are stored once, in `containers`; check facts are stored once, in `health_checks`. Nothing is duplicated.
-- **Referential integrity:** `container_id` is a real `REFERENCES` constraint, so an orphan check is impossible. `ON DELETE CASCADE` removes a container's checks with it.
-- **Foreign key index:** PostgreSQL does not index foreign key columns automatically. The composite index makes joins and cascade deletes use an index instead of a full table scan (verified with `EXPLAIN`).
-- **Constraints in the database:** name length, allowed statuses and non-negative latency are `CHECK` constraints, so bad data is rejected even if a client bypasses the API.
+- **Referential integrity (the 1 → many line):** `health_checks.container_id` is a real `REFERENCES containers(id)` constraint, so an orphan check is impossible. `ON DELETE CASCADE` removes a container's checks with it.
+- **Foreign key index:** PostgreSQL does not index foreign key columns automatically. The index on `(container_id, checked_at DESC)` makes joins and cascade deletes use an index instead of a full table scan (verified with `EXPLAIN`).
+- **Constraints in the database (`PK`, `UQ`, `CHK`, `FK` in the diagram):** unique names, allowed statuses and non-negative latency are enforced by PostgreSQL, so bad data is rejected even if a client bypasses the API.
 - **`updated_at`** is maintained by a trigger, so it's correct no matter who writes the row.
 
 Full DDL: [`db/schema.sql`](db/schema.sql).
 
-### Document (MongoDB), query-driven and denormalized
+### Right: MongoDB, document (query-driven, denormalized)
 
-One collection, `containers`. Each document embeds its checks:
-
-```json
-{
-  "_id": "36799d3a-2b52-4781-a90d-2035157e7694",
-  "name": "web-1",
-  "image": "pulse:1.0.0",
-  "status": "running",
-  "created_at": "2026-11-12T20:44:27Z",
-  "updated_at": "2026-11-12T20:45:02Z",
-  "checks": [
-    { "id": "ee348ced-…", "status": "ok",   "latency_ms": 1.3, "detail": null,              "checked_at": "…" },
-    { "id": "a83e9d1a-…", "status": "fail", "latency_ms": 8.2, "detail": "timeout after 2s", "checked_at": "…" }
-  ]
-}
-```
-
-- **Embedded, not referenced:** checks are only ever read together with their container, so they live inside it. Reading a container with all its checks is **one query** (`find_one`), with no second collection and no application-side join.
+- **Embedded, not referenced:** checks are only ever read together with their container, so they live inside it. Reading a container with all its checks is **one query** (`find_one`), with no second collection and no application-side join. A real document from this project is shown in [walkthrough step 6](#6-mongodb-one-document-checks-embedded).
 - **Bounded array:** new checks are added with `$push` and `$slice: -100`, so a document keeps only the newest 100 checks and can never grow toward MongoDB's 16 MB document limit.
 - **Atomic writes:** adding a check (`$push`) and editing one (`$set` with the positional `$` operator) each change a single document, which MongoDB applies atomically. No multi-document transaction is needed.
 - **Unique index** on `name`, matching the SQL `UNIQUE` constraint.
