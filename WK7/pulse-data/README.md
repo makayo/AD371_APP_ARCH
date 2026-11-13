@@ -201,6 +201,7 @@ The AI's draft was checked against the assignment's Data Architecture Audit Chec
 | Opening database clients at import time would be shared across gunicorn's forked workers (pymongo warns about this) | Driver warnings / connection safety | Clients are created lazily inside each worker on first use, and pools are closed on exit |
 | An embedded array that grows forever is a known MongoDB anti-pattern | NoSQL design | `$push` with `$slice: -100` caps the array |
 | After a delete, the automatic list refresh replaced the delete response in the UI, hiding `cascaded_checks` / `remaining_checks` | UI / QA visibility | Background list reloads are logged but no longer overwrite the response panel |
+| A stray `logLine()` call with no arguments, left inside the detail panel's HTML during UI edits, threw an error, so a newly created container did not appear until the page was refreshed | UI bug (found in DevTools Console) | Removed the stray call; the list and detail panel refresh normally |
 
 ## When to choose SQL vs NoSQL (for this domain)
 
@@ -342,7 +343,7 @@ Automated coverage: `tests/test_qa.py`. Tick each row after running it yourself.
 
 | Test | Expected | Result |
 |---|---|---|
-| Desktop and mobile (DevTools device toolbar, e.g. iPhone 12) | Tables render on desktop; stacked cards on mobile, no horizontal scrolling | ⬜ |
+| Desktop and mobile (DevTools device toolbar, e.g. iPhone 12) | Tables render on desktop; stacked cards on mobile, no horizontal scrolling | ✅ 375 px (iPhone 12): forms, tables and logs fit with no horizontal scrolling; both tabs and both themes work |
 | Empty inputs | Inline "Name and image are required."; no request sent | ⬜ |
 | Long text | A very long name wraps without clipping; API rejects names over 100 characters with `400` | ⬜ |
 
@@ -386,3 +387,5 @@ pulse-data/
 6. "Make sure the README connects to each screenshot with a storyline from start to finish so readers can follow easily."
 7. "Do the images depict the walkthrough statements? Are we using the correct images from start to finish?"
 8. "Review this" (requirements: side-by-side data models and a flaw caught in the AI draft, the SQL and NoSQL CLI walkthroughs, round trips, QA checklist and an SQL vs NoSQL heuristic)
+9. In a separate Claude chat: verified the mobile layout at 375 px (iPhone 12) in Chrome DevTools.
+10. In a separate Claude chat: "Can we make a dark/light mode?" and "Replace the name with just the sun/moon logo." Also requested separate response logs for PostgreSQL and MongoDB, and troubleshot a list-refresh bug and a missing health-check detail (which turned out to be an empty Detail box).

@@ -7,7 +7,7 @@
 <link rel="icon" href="data:,">
 <style>
   :root { --bg:#07090d; --card:#0c1016; --card2:#10151d; --line:#1a212c; --line2:#243041; --text:#d7dee8; --muted:#6b7686; --dim:#465162;
-          --accent:#22d3ee; --ok:#2ee59d; --bad:#ff4d6d; --warn:#f5b84b; --mono:"JetBrains Mono","SF Mono",ui-monospace,Menlo,Consolas,monospace; }
+          --surface:#0c1016; --input-bg:#080b10; --pre-text:#b8c2cf; --accent-rgb:34,211,238; --bad-rgb:255,77,109; --accent:#22d3ee; --ok:#2ee59d; --bad:#ff4d6d; --warn:#f5b84b; --mono:"JetBrains Mono","SF Mono",ui-monospace,Menlo,Consolas,monospace; }
   * { box-sizing:border-box; }
   html { color-scheme:dark; scrollbar-color:var(--line2) transparent; scrollbar-width:thin; }
   body { margin:0; font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif; color:var(--text); background:var(--bg);
@@ -20,8 +20,8 @@
   .brand span { color:var(--muted); font-size:12px; }
   .tabs { display:flex; gap:6px; }
   .tab { border:1px solid var(--line2); background:var(--card2); color:var(--muted); padding:8px 14px; border-radius:6px; cursor:pointer; font-size:12px; }
-  .tab.on { color:var(--accent); border-color:var(--accent); background:rgba(34,211,238,.07); }
-  section { background:rgba(12,16,22,.94); border:1px solid var(--line); border-radius:8px; padding:18px; margin-bottom:16px; min-width:0; }
+  .tab.on { color:var(--accent); border-color:var(--accent); background:rgba(var(--accent-rgb),.07); }
+  section { background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:18px; margin-bottom:16px; min-width:0; }
   h2 { margin:0 0 4px; font-size:12px; font-weight:500; text-transform:uppercase; letter-spacing:.12em; color:var(--muted); }
   h2::before { content:"// "; color:var(--accent); }
   .sub { font-size:12px; color:var(--dim); margin:0 0 12px; }
@@ -30,20 +30,20 @@
   form { display:flex; gap:8px; flex-wrap:wrap; align-items:flex-start; }
   .field { display:flex; flex-direction:column; gap:4px; flex:1 1 160px; min-width:0; }
   label { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.1em; }
-  input, select { width:100%; background:#080b10; color:var(--text); border:1px solid var(--line2); border-radius:6px; padding:9px 10px; font-size:13px; min-width:0; }
+  input, select { width:100%; background:var(--input-bg); color:var(--text); border:1px solid var(--line2); border-radius:6px; padding:9px 10px; font-size:13px; min-width:0; }
   input:focus, select:focus { outline:none; border-color:var(--accent); }
   input.invalid { border-color:var(--bad); }
   .err { color:var(--bad); font-size:12px; font-family:var(--mono); min-height:16px; width:100%; margin-top:4px; overflow-wrap:anywhere; }
   button { font-size:12px; border-radius:6px; padding:9px 14px; cursor:pointer; border:1px solid var(--line2); background:var(--card2); color:var(--text); white-space:nowrap; }
-  button.primary { border-color:var(--accent); color:var(--accent); background:rgba(34,211,238,.06); }
-  button.danger { border-color:rgba(255,77,109,.5); color:var(--bad); background:rgba(255,77,109,.05); }
+  button.primary { border-color:var(--accent); color:var(--accent); background:rgba(var(--accent-rgb),.06); }
+  button.danger { border-color:rgba(var(--bad-rgb),.5); color:var(--bad); background:rgba(var(--bad-rgb),.05); }
   button.small { padding:5px 9px; font-size:11px; }
   button:hover { filter:brightness(1.25); }
   .form-btn { align-self:flex-end; }
   table { width:100%; border-collapse:collapse; font-size:12px; table-layout:fixed; }
   th { text-align:left; font-weight:400; color:var(--dim); font-size:10px; text-transform:uppercase; letter-spacing:.1em; padding:0 8px 8px; border-bottom:1px solid var(--line2); }
   td { padding:9px 8px; border-bottom:1px solid var(--line); vertical-align:top; overflow-wrap:anywhere; word-break:break-word; }
-  tr.sel td { background:rgba(34,211,238,.05); }
+  tr.sel td { background:rgba(var(--accent-rgb),.05); }
   .st { display:inline-flex; align-items:center; gap:6px; }
   .st::before { content:""; width:6px; height:6px; border-radius:50%; background:currentColor; flex:none; }
   .st.running, .st.ok { color:var(--ok); } .st.stopped { color:var(--muted); } .st.unhealthy, .st.fail { color:var(--bad); }
@@ -52,14 +52,14 @@
   .detail-head { display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; align-items:flex-start; }
   .detail-head h3 { margin:0; font-family:var(--mono); font-size:16px; font-weight:500; overflow-wrap:anywhere; }
   .meta { font-family:var(--mono); font-size:11px; color:var(--muted); margin-top:4px; overflow-wrap:anywhere; }
-  .badge { font-family:var(--mono); font-size:10px; color:var(--accent); border:1px solid rgba(34,211,238,.4); border-radius:4px; padding:2px 6px; display:inline-block; margin-top:6px; }
+  .badge { font-family:var(--mono); font-size:10px; color:var(--accent); border:1px solid rgba(var(--accent-rgb),.4); border-radius:4px; padding:2px 6px; display:inline-block; margin-top:6px; }
   .block { border-top:1px dashed var(--line2); margin-top:14px; padding-top:14px; }
   .qa { display:flex; gap:8px; flex-wrap:wrap; }
   .log { max-height:260px; overflow:auto; font-size:12px; }
   .log div { display:grid; grid-template-columns:70px 64px 1fr; gap:10px; padding:6px 2px; border-bottom:1px solid var(--line); }
   .log .code { font-weight:600; } .c2 { color:var(--ok); } .c4 { color:var(--warn); } .c5 { color:var(--bad); }
   .log .msg { color:var(--muted); overflow-wrap:anywhere; }
-  pre { background:#080b10; border:1px solid var(--line); border-radius:6px; padding:10px; font-size:11px; color:#b8c2cf; max-height:240px; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; margin:10px 0 0; }
+  pre { background:var(--input-bg); border:1px solid var(--line); border-radius:6px; padding:10px; font-size:11px; color:var(--pre-text); max-height:240px; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; margin:10px 0 0; }
   /* mobile: tables become stacked cards */
   @media (max-width:640px) {
     main { padding:0 12px 30px; }
@@ -70,15 +70,76 @@
     td::before { content:attr(data-l); color:var(--dim); font-size:10px; text-transform:uppercase; letter-spacing:.08em; }
     .log div { grid-template-columns:56px 48px 1fr; }
   }
+
+  /* Responsive refinement: presentation only; no API or CRUD changes. */
+  .topbar > *, .detail-head > *, .grid2 > *, .field, .log .msg { min-width:0; }
+  .brand, .sub, .badge, .meta, .empty { overflow-wrap:anywhere; }
+  .tabs { max-width:100%; }
+  .tab { min-width:0; }
+  .detail-head h3 { word-break:break-word; }
+  .log .msg { min-width:0; word-break:break-word; }
+  @media (max-width:640px) {
+    main { width:100%; padding:0 10px 24px; }
+    section { padding:12px; }
+    .topbar { flex-direction:column; align-items:stretch; gap:12px; }
+    .brand { line-height:1.6; }
+    .tabs { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); width:100%; }
+    .tab { width:100%; padding:11px 8px; white-space:normal; }
+    .grid2 { grid-template-columns:minmax(0,1fr); }
+    form { flex-direction:column; align-items:stretch; }
+    form > .field, form > .field[style] { flex:0 0 auto !important; width:100%; }
+    input, select { width:100%; max-width:100%; font-size:16px; }
+    button { max-width:100%; white-space:normal; overflow-wrap:anywhere; min-height:40px; }
+    .form-btn { align-self:stretch; width:100%; }
+    .qa { display:grid; grid-template-columns:minmax(0,1fr); }
+    .qa button { width:100%; text-align:center; }
+    td { min-width:0; overflow-wrap:anywhere; }
+    td[colspan] { display:block; }
+    td .acts { min-width:0; }
+    .acts button { flex:1 1 90px; }
+    /* Full-width, equal-sized actions in mobile container cards. */
+    #rows td:last-child { display:block; width:100%; }
+    #rows td:last-child::before { display:none; }
+    #rows td:last-child .acts { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); width:100%; gap:8px; }
+    #rows td:last-child .acts button { width:100%; min-width:0; }
+    .log div { grid-template-columns:minmax(0,1fr) auto; gap:4px 8px; }
+    .log .msg { grid-column:1 / -1; }
+    pre { max-width:100%; }
+  }
+  @media (max-width:360px) {
+    td { grid-template-columns:72px minmax(0,1fr); gap:6px; padding:7px 8px; }
+    .brand span { display:block; }
+  }
+
+  /* Theme tokens: preserve dark styling; offer an accessible light palette. */
+  html[data-theme="light"] {
+    color-scheme:light;
+    --bg:#f4f7fb; --card:#ffffff; --card2:#eef3f9;
+    --surface:#ffffff; --input-bg:#ffffff; --pre-text:#26364c;
+    --line:#dce4ee; --line2:#b9c8d9;
+    --text:#172338; --muted:#42536b; --dim:#52637a;
+    --accent:#006b88; --accent-rgb:0,107,136;
+    --ok:#08764e; --bad:#b42342; --bad-rgb:180,35,66; --warn:#946000;
+  }
+  .topbar-actions { display:flex; align-items:center; gap:10px; min-width:0; }
+  .theme-toggle { display:inline-flex; align-items:center; justify-content:center; gap:7px; min-height:36px; white-space:nowrap; }
+  .theme-toggle:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
+  @media (max-width:640px) {
+    .topbar-actions { display:grid; grid-template-columns:minmax(0,1fr) auto; width:100%; }
+    .theme-toggle { min-height:42px; }
+  }
 </style>
 </head>
 <body>
 <main>
   <div class="topbar">
     <div class="brand"><b>&#9673;</b> pulse data <span>// polyglot persistence</span></div>
+    <div class="topbar-actions">
     <div class="tabs" role="tablist">
       <button class="tab on" data-engine="sql" role="tab">PostgreSQL</button>
       <button class="tab" data-engine="nosql" role="tab">MongoDB</button>
+    </div>
+    <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Switch to light mode" aria-pressed="false">☀</button>
     </div>
   </div>
 
@@ -128,36 +189,120 @@
   </section>
 </main>
 <script>
+
+// Theme preference is local to this browser; API and CRUD behavior are unchanged.
+const themeButton = document.getElementById("theme-toggle");
+function setTheme(theme) {
+  const light = theme === "light";
+  document.documentElement.dataset.theme = light ? "light" : "dark";
+  themeButton.textContent = light ? "☾" : "☀";
+  themeButton.setAttribute("aria-label", light ? "Switch to dark mode" : "Switch to light mode");
+  themeButton.setAttribute("aria-pressed", String(light));
+}
+let savedTheme;
+try { savedTheme = localStorage.getItem("pulse-data-theme"); } catch (_) { /* Storage may be blocked. */ }
+setTheme(savedTheme === "light" ? "light" : "dark");
+themeButton.addEventListener("click", () => {
+  const next = document.documentElement.dataset.theme === "light" ? "dark" : "light";
+  setTheme(next);
+  try { localStorage.setItem("pulse-data-theme", next); } catch (_) { /* Keep the in-page setting. */ }
+});
+
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const when = t => t ? new Date(t).toLocaleString() : "-";
 let engine = "sql", selected = null;
+
+const responseLogs = {
+  sql: [],
+  nosql: []
+};
+
+const lastResponses = {
+  sql: "Last response body",
+  nosql: "Last response body"
+};
+
+function renderLog() {
+  const log = $("log");
+  const entries = responseLogs[engine];
+
+  log.innerHTML = entries.length
+    ? entries.map(entry => {
+        const cls = entry.status >= 500 || entry.status === 0
+          ? "c5"
+          : entry.status >= 400 ? "c4" : "c2";
+
+        return '<div><span>' + esc(entry.method) +
+          '</span><span class="code ' + cls + '">' +
+          (entry.status || "ERR") +
+          '</span><span class="msg">' + esc(entry.url) +
+          (entry.msg ? " · " + esc(entry.msg) : "") +
+          '</span></div>';
+      }).join("")
+    : '<div><span></span><span></span><span class="msg">Requests appear here.</span></div>';
+
+  $("last").textContent = lastResponses[engine];
+}
 
 const NOTES = {
   sql: "PostgreSQL: normalized tables, foreign key with ON DELETE CASCADE, parameterized queries.",
   nosql: "MongoDB: one document per container, checks embedded in an array (single-query reads)."
 };
 
+
 async function api(method, path, payload, quiet) {
-  const url = "/api/" + engine + path;
+  const requestEngine = engine;
+  const url = "/api/" + requestEngine + path;
   let res, data;
+
   try {
-    res = await fetch(url, {method, headers: payload ? {"Content-Type":"application/json"} : {}, body: payload ? JSON.stringify(payload) : undefined});
+    res = await fetch(url, {
+      method,
+      headers: payload ? {"Content-Type":"application/json"} : {},
+      body: payload ? JSON.stringify(payload) : undefined
+    });
+
     data = await res.json().catch(() => ({}));
-  } catch (e) { logLine(method, url, 0, "network error"); return {ok:false, status:0, data:{error:"network error"}}; }
-  logLine(method, url, res.status, data.error || (res.ok ? "ok" : ""));
-  if (!quiet) $("last").textContent = JSON.stringify(data, null, 2); // background list reloads don't hide the result of the action
-  return {ok: res.ok, status: res.status, data};
+  } catch (e) {
+    logLine(requestEngine, method, url, 0, "network error");
+    return {ok:false, status:0, data:{error:"network error"}};
+  }
+
+  logLine(
+    requestEngine,
+    method,
+    url,
+    res.status,
+    data.error || (res.ok ? "ok" : "")
+  );
+
+  if (!quiet) {
+    lastResponses[requestEngine] = JSON.stringify(data, null, 2);
+
+    if (engine === requestEngine) {
+      $("last").textContent = lastResponses[requestEngine];
+    }
+  }
+
+  return {ok:res.ok, status:res.status, data};
 }
 
-function logLine(method, url, status, msg) {
-  const cls = status >= 500 || status === 0 ? "c5" : status >= 400 ? "c4" : "c2";
-  const d = document.createElement("div");
-  d.innerHTML = '<span>' + esc(method) + '</span><span class="code ' + cls + '">' + (status || "ERR") + '</span><span class="msg">' + esc(url) + (msg ? " · " + esc(msg) : "") + '</span>';
-  const log = $("log");
-  if (log.firstChild && !log.firstChild.firstChild.textContent) log.innerHTML = "";
-  log.prepend(d);
+
+
+function logLine(requestEngine, method, url, status, msg) {
+  responseLogs[requestEngine].unshift({
+    method,
+    url,
+    status,
+    msg
+  });
+
+  if (engine === requestEngine) {
+    renderLog();
+  }
 }
+
 
 async function loadList() {
   const r = await api("GET", "/containers", null, true);
@@ -233,7 +378,8 @@ $("create-form").addEventListener("submit", async e => {
   const r = await api("POST", "/containers", {name, image});
   if (!r.ok) { $("create-err").textContent = r.data.error || "Create failed."; return; }
   $("c-name").value = ""; $("c-image").value = ""; $("create-err").textContent = "";
-  openDetail(r.data.id);
+  await openDetail(r.data.id);
+  await loadList();
 });
 ["c-name","c-image"].forEach(f => $(f).addEventListener("input", () => { $(f).classList.remove("invalid"); $("create-err").textContent = ""; }));
 
@@ -253,6 +399,7 @@ document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () =>
   $("engine-note").textContent = NOTES[engine];
   $("qa-rollback").hidden = engine !== "sql";
   $("detail-body").innerHTML = '<p class="empty">Select a container to see it with its health checks.</p>';
+  renderLog();
   loadList();
 }));
 
@@ -262,7 +409,13 @@ $("qa-long").onclick = () => api("POST", "/containers", {name: "x".repeat(150), 
 $("qa-404").onclick = () => api("GET", "/containers/" + uuid());
 $("qa-orphan").onclick = () => api("POST", "/containers/" + uuid() + "/checks", {status: "ok", latency_ms: 1});
 $("qa-rollback").onclick = () => api("POST", "/qa/transaction-rollback");
-$("clear-log").onclick = () => { $("log").innerHTML = '<div><span></span><span></span><span class="msg">Requests appear here.</span></div>'; };
+
+$("clear-log").onclick = () => {
+  responseLogs[engine] = [];
+  lastResponses[engine] = "Last response body";
+  renderLog();
+};
+
 
 $("engine-note").textContent = NOTES[engine];
 loadList();
