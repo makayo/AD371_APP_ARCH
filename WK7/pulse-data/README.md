@@ -409,11 +409,11 @@ pulse-data/
 
 ### Prompts (spelling and grammar corrected)
 
-1. Provided this assignment ("Polyglot Persistence: Schema Modeling & CRUD in SQL and NoSQL") and asked: "Now I need to do this."
+1. Provided this assignment ("Polyglot Persistence: Schema Modeling & CRUD in SQL and NoSQL") and asked: "Let's start this"
 2. "Let's talk about systems: what I already have, and am I able to use these?"
 3. "Use Pulse." (Chose the Pulse domain: containers and health checks, built with Python and Flask, PostgreSQL and MongoDB in Docker Compose.)
-4. "Do I do this first?" (resetting both databases before testing), and shared screenshots and terminal output from each test run (SQL and MongoDB CRUD, QA buttons, `psql` and `mongosh` checks) for review.
+4. "Walk through and check these" (resetting both databases before testing), and shared screenshots and terminal output from each test run (SQL and MongoDB CRUD, QA buttons, `psql` and `mongosh` checks) for review.
 5. "Add the screenshots I gave you into the screenshots folder."
 6. "Make sure the README connects to each screenshot with a storyline from start to finish so readers can follow easily."
 7. "Do the images depict the walkthrough statements? Are we using the correct images from start to finish?"
-8. "Do I have this?" (side-by-side data models and a flaw caught in the AI draft) and "Do that and check these as well." (the remaining video requirements: SQL and NoSQL CLI walkthroughs, round trips, QA checklist and an SQL vs NoSQL heuristic)
+8. " "Review this" (requirements: side-by-side data models and a flaw caught in the AI draft, the SQL and NoSQL CLI walkthroughs, round trips, QA checklist and an SQL vs NoSQL heuristic)
