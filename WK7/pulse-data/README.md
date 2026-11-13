@@ -1,10 +1,24 @@
 # Pulse Data: Polyglot Persistence
 
-Pulse Data stores **containers** and their **health checks** in two databases at once, PostgreSQL and MongoDB, behind one API and one UI. The same feature is modeled the way each engine works best: normalized tables with enforced foreign keys in PostgreSQL, and one self-contained document per container in MongoDB.
+Pulse Data stores containers and their health checks in **PostgreSQL** and **MongoDB** at the same time, behind one Flask API and one web UI. Each database models the same feature the way it works best: normalized tables with enforced foreign keys in PostgreSQL, and one self-contained document per container in MongoDB.
 
-It builds on [Pulse](../../WK6/pulse) (WK6), which monitored container health in memory; Pulse Data makes that data persistent.
+It extends [Pulse](../../WK6/pulse) (WK6), which kept health data in memory.
 
-**Reading order:** [Architecture](#architecture) → [Data models](#data-models) → [Walkthrough](#walkthrough) (screenshots, step by step) → [AI output audit](#ai-output-audit) → [When to choose SQL vs NoSQL](#when-to-choose-sql-vs-nosql-for-this-domain) → [Run guide](#run-guide) → [QA checklist](#qa-checklist).
+**Stack:** Python 3.12 · Flask · PostgreSQL 16 · MongoDB 7 · Docker Compose
+**Course:** AD371 Application Architecture, Week 7
+
+## Contents
+
+1. [Architecture](#architecture)
+2. [Data models](#data-models)
+3. [When to choose SQL vs NoSQL](#when-to-choose-sql-vs-nosql)
+4. [AI output audit](#ai-output-audit)
+5. [Walkthrough](#walkthrough)
+6. [QA checklist](#qa-checklist)
+7. [Run guide](#run-guide)
+8. [API reference](#api-reference)
+9. [Project files](#project-files)
+10. [AI disclosure & prompt log](#ai-disclosure--prompt-log)
 
 ## Architecture
 
@@ -28,86 +42,97 @@ It builds on [Pulse](../../WK6/pulse) (WK6), which monitored container health in
                    volume: pgdata       volume: mongodata
 ```
 
-All three run in Docker Compose. Only the API publishes a port; the databases are reachable only on the internal Compose network.
-
-**Why two engines?** They suit different access patterns:
-
-| Workload | Best fit | Why |
-|---|---|---|
-| Integrity-critical relationships: every check must belong to a real container; deleting a container must clean up its history | PostgreSQL | Foreign keys, cascade rules, CHECK constraints and multi-statement transactions are enforced by the database itself |
-| Fast "show this container with its recent checks" reads | MongoDB | The whole aggregate lives in one document, so a read is one `find_one` with no joins |
+- **One API, two engines:** both expose the same routes and return the same JSON shape.
+- **Docker Compose:** only the API publishes a port; both databases are reachable only on the internal network.
+- **UI:** create, read, update and delete for both engines, built-in QA test buttons, a separate response log per engine, a light/dark theme, and a layout that works down to 375 px.
 
 ## Data models
 
-The same domain, modeled two ways. **Left:** PostgreSQL, two normalized tables linked by a foreign key. **Right:** MongoDB, one document per container with its checks embedded. **Below:** how each model handles the same operations.
+The same domain, modeled two ways. **Left:** PostgreSQL. **Right:** MongoDB. **Below:** how each handles the same operations.
 
 ![PostgreSQL ER model and MongoDB document model, side by side](screenshots/data-models.png)
 
-### Left: PostgreSQL, relational (third normal form)
+**PostgreSQL (third normal form)**
 
-- **3NF:** every non-key column depends only on its own table's key. Container facts are stored once, in `containers`; check facts are stored once, in `health_checks`. Nothing is duplicated.
-- **Referential integrity (the 1 → many line):** `health_checks.container_id` is a real `REFERENCES containers(id)` constraint, so an orphan check is impossible. `ON DELETE CASCADE` removes a container's checks with it.
-- **Foreign key index:** PostgreSQL does not index foreign key columns automatically. The index on `(container_id, checked_at DESC)` makes joins and cascade deletes use an index instead of a full table scan (verified with `EXPLAIN`).
-- **Constraints in the database (`PK`, `UQ`, `CHK`, `FK` in the diagram):** unique names, allowed statuses and non-negative latency are enforced by PostgreSQL, so bad data is rejected even if a client bypasses the API.
-- **`updated_at`** is maintained by a trigger, so it's correct no matter who writes the row.
+- Container facts are stored once in `containers`, and check facts once in `health_checks`.
+- `health_checks.container_id` is a real `REFERENCES` constraint with `ON DELETE CASCADE`, so orphan checks are impossible.
+- An index on `(container_id, checked_at DESC)` serves joins and cascade deletes; PostgreSQL does not index foreign keys automatically.
+- `UNIQUE` and `CHECK` constraints enforce names, statuses and latency in the database itself, and a trigger maintains `updated_at`.
 
 Full DDL: [`db/schema.sql`](db/schema.sql).
 
-### Right: MongoDB, document (query-driven, denormalized)
+**MongoDB (query-driven, denormalized)**
 
-- **Embedded, not referenced:** checks are only ever read together with their container, so they live inside it. Reading a container with all its checks is **one query** (`find_one`), with no second collection and no application-side join. A real document from this project is shown in [walkthrough step 6](#6-mongodb-one-document-checks-embedded).
-- **Bounded array:** new checks are added with `$push` and `$slice: -100`, so a document keeps only the newest 100 checks and can never grow toward MongoDB's 16 MB document limit.
-- **Atomic writes:** adding a check (`$push`) and editing one (`$set` with the positional `$` operator) each change a single document, which MongoDB applies atomically. No multi-document transaction is needed.
-- **Unique index** on `name`, matching the SQL `UNIQUE` constraint.
+- One `containers` collection; each document embeds its checks, so a container and its checks load with one `find_one`.
+- The checks array is capped at the newest 100 (`$push` with `$slice: -100`), so a document never grows toward the 16 MB limit.
+- Adding or editing a check changes one document, which MongoDB applies atomically.
+- A unique index on `name` matches the SQL `UNIQUE` constraint.
 
-### IDs
+**IDs:** both engines use UUIDv4 keys generated by the application. Any process can create them without a central counter, so they never collide across workers or databases.
 
-Both engines use **UUIDv4** keys generated by the application (`uuid.uuid4()`), with `gen_random_uuid()` as the PostgreSQL column default. UUIDs can be created by any process without asking a central sequence, so IDs never collide across workers or databases, and they don't reveal how many records exist the way auto-increment integers do. In MongoDB the UUID string is stored directly as `_id`.
+## When to choose SQL vs NoSQL
+
+**Heuristic:** choose by *how the data is read* and *what bad data would cost*.
+
+| Choose | When | In Pulse Data |
+|---|---|---|
+| **PostgreSQL** | The relationship must be guaranteed; child records are queried on their own or across parents; you need reporting and multi-row transactions | Health-check **history**: every check belongs to a real container, and queries like "all failed checks across the fleet in the last hour" stay simple and safe |
+| **MongoDB** | Data is read and written as one unit; children have no life outside the parent; the child list is bounded | The **dashboard view**: one container with its latest checks is one `find_one`, and adding a check is one atomic `$push` |
+
+**Rule of thumb:** if children are always accessed through their parent and stay bounded, embed them in a document. If they're queried independently, shared, or grow without limit, give them their own table with a foreign key.
+
+**For this domain,** PostgreSQL is the better system of record, because health history needs guaranteed integrity and cross-container queries. MongoDB fits the per-container dashboard view.
+
+## AI output audit
+
+The AI's draft was checked against the assignment's Data Architecture Audit Checklist.
+
+| Checklist question | Result | Evidence |
+|---|---|---|
+| **SQL referential integrity:** real foreign keys, FK indexes and cascade rules? | ✅ Pass | `REFERENCES containers(id) ON DELETE CASCADE`; composite index confirmed with `EXPLAIN` (index scan, no sequential scan) |
+| **NoSQL anti-patterns:** SQL-shaped collections, or embedding that matches the read pattern? | ✅ Pass | One collection with embedded, capped checks; the detail read is a single `find_one` |
+| **SQL injection:** string concatenation, or bound parameters? | ✅ Pass | Every value is a bound `%s` parameter; UPDATE columns come from a fixed allow-list; a test stores `x'); DROP TABLE containers; --` as a plain name |
+| **ID generation:** safe across distributed boundaries? | ✅ Pass | UUIDv4 generated in the app for both engines; no shared counters |
+
+**Issues found in review and testing**
+
+| Finding | Type | Resolution |
+|---|---|---|
+| A non-object `initial_check` value caused a 500 instead of a 400 | Error handling | Input is type-checked first; the API returns `400` |
+| The browser's `/favicon.ico` request added a 404 to the console | Console health | The page declares an empty inline icon |
+| Database clients opened at import time would be shared across gunicorn's forked workers | Connection safety | Clients are created lazily in each worker and closed on exit |
+| An embedded array that grows forever is a known MongoDB anti-pattern | NoSQL design | `$push` with `$slice: -100` caps the array |
+| After a delete, the list refresh replaced the delete response, hiding `cascaded_checks` and `remaining_checks` | UI visibility | List reloads no longer overwrite the response panel |
+| A stray `logLine()` call with no arguments, left in the detail panel during UI edits, stopped new containers from appearing until a page refresh | UI bug (found in DevTools Console) | The stray call was removed; the list and detail panel refresh normally |
 
 ## Walkthrough
 
-This walkthrough follows one container, `web-1`, through its whole life in each database, using real results from this project running on Docker Desktop.
+One container, `web-1`, through its whole life in each database. Real results from this project on Docker Desktop.
 
-### 1. Start the stack
+### 1. PostgreSQL: create and read
 
-All three services start and pass their health checks. Only the API publishes a port; PostgreSQL (`5432`) and MongoDB (`27017`) stay internal.
-
-```
-$ docker compose ps
-NAME                    IMAGE                  SERVICE    STATUS                    PORTS
-pulse-data-app-1        pulse-data:1.0.0       app        Up 12 seconds (healthy)   0.0.0.0:8000->8000/tcp
-pulse-data-mongo-1      mongo:7.0              mongo      Up 19 seconds (healthy)   27017/tcp
-pulse-data-postgres-1   postgres:16.4-alpine   postgres   Up 19 seconds (healthy)   5432/tcp
-
-$ curl -i http://localhost:8000/healthz
-HTTP/1.1 200 OK
-{"databases":{"nosql":"ok","sql":"ok"},"status":"ok"}
-```
-
-### 2. PostgreSQL: create and read with a join
-
-On the **PostgreSQL** tab, `web-1` is created (`POST 201`) and given two health checks (`POST …/checks` → `201` each). Opening it loads the container **and** both checks with a single `LEFT JOIN`, as the badge shows. The newest check (`fail`) is listed first.
+`web-1` is created (`201`) and given two checks (`201` each). Opening it loads the container and both checks with one `LEFT JOIN`, newest first.
 
 ![web-1 with two checks, loaded by one LEFT JOIN](screenshots/sql-detail-with-checks.png)
 
-### 3. PostgreSQL: update
+### 2. PostgreSQL: update
 
-Changing the status to `stopped` (`PATCH 200`) shows immediately in both the detail panel and the list. The **updated** time moves from 3:21:02 to 3:25:06 PM without the app sending a timestamp: the `updated_at` trigger in the database sets it.
+Setting the status to `stopped` (`200`) shows immediately. The updated time moves from 3:21:02 to 3:25:06 PM, set by the database trigger rather than the app.
 
 ![Status changed to stopped; updated time set by the trigger](screenshots/sql-update.png)
 
-### 4. PostgreSQL: integrity and error handling
+### 3. PostgreSQL: integrity
 
-The QA buttons send bad requests on purpose. The first three are rejected by the API's validation; the last two are enforced by **PostgreSQL itself**:
+The first three QA buttons are rejected by the API's validation. The last two are enforced by PostgreSQL:
 
-- **Orphan check:** a check for a container that doesn't exist is rejected by the foreign key (`400`, `sqlstate 23503`, `health_checks_container_id_fkey`).
-- **Transaction rollback:** a container and an orphan check are inserted in one transaction. The foreign key fails, the whole transaction rolls back, and the container does not exist afterwards (`passed: true`).
+- **Orphan check:** rejected by the foreign key (`400`, `sqlstate 23503`, `health_checks_container_id_fkey`).
+- **Transaction rollback:** a container and an orphan check are written in one transaction; the foreign key fails, so neither is kept (`passed: true`).
 
 ![All five QA results, including the foreign key violation and the rollback](screenshots/sql-qa-tests.png)
 
-### 5. PostgreSQL: delete with cascade
+### 4. PostgreSQL: delete with cascade
 
-Deleting `web-1` (`DELETE 200`) also removes its two checks through `ON DELETE CASCADE`. Querying the database directly confirms that no orphaned checks remain:
+Deleting `web-1` (`200`) removes its two checks through `ON DELETE CASCADE`, confirmed in the database:
 
 ```
 $ docker compose exec postgres psql -U pulse -d pulse -c "SELECT count(*) AS remaining_checks FROM health_checks WHERE container_id = 'dcb7651d-319d-430d-b376-6396e32b61bb';"
@@ -117,13 +142,13 @@ $ docker compose exec postgres psql -U pulse -d pulse -c "SELECT count(*) AS rem
 (1 row)
 ```
 
-### 6. MongoDB: one document, checks embedded
+### 5. MongoDB: create and read
 
-On the **MongoDB** tab, the same steps create `web-1` and push two checks into it (`$push`, `201` each). The detail loads with **one** `find_one`, and the response contains the `checks` array inside the container:
+The same steps on the MongoDB tab. Each check is a `$push` into the container's document, and the detail loads with one `find_one`:
 
 ![MongoDB detail; the response shows the embedded checks array](screenshots/mongo-detail-with-checks.png)
 
-Looking at MongoDB directly shows the design: one document holds the container and its checks, with the app-generated UUID as `_id` and real BSON dates.
+The stored document, read directly from MongoDB:
 
 ```
 $ docker compose exec mongo mongosh -u pulse -p pulse_dev_password --quiet --eval "db.getSiblingDB('pulse').containers.findOne()"
@@ -141,251 +166,157 @@ $ docker compose exec mongo mongosh -u pulse -p pulse_dev_password --quiet --eva
 }
 ```
 
-Compare this with PostgreSQL, where the same data lives in two tables linked by a foreign key.
+### 6. MongoDB: update and a write to a missing document
 
-### 7. MongoDB: update and a write to a missing document
-
-The status update (`PATCH 200`) is a single atomic `$set` on the document. Then the **Orphan check** button tries to add a check to a container that doesn't exist. MongoDB has no foreign keys, so nothing errors in the database; the `$push` simply matches no document, and the API returns `404 container not found`.
+The status update (`200`) is one atomic `$set`. The **Orphan check** returns `404 container not found`: MongoDB has no foreign keys, so the `$push` simply matches no document.
 
 ![MongoDB: stopped status, and the orphan check returning 404](screenshots/mongo-orphan-404.png)
 
-### 8. MongoDB: delete and cleanup
+### 7. MongoDB: delete
 
-Deleting the document (`DELETE 200`) removes the container and its embedded checks in one operation. Nothing is left behind and there are no child records to clean up:
+One delete (`200`) removes the document and its embedded checks. There are no child records to clean up.
 
 ![MongoDB delete: 2 embedded checks removed, 0 documents remaining](screenshots/mongo-delete.png)
 
-### 9. Automated QA suite
+## QA checklist
 
-The same checks, plus duplicate names, embedded-field updates and an SQL-injection string, run automatically against both live databases:
+All rows verified against live PostgreSQL 16 and MongoDB 7. The automated suite (`tests/test_qa.py`) covers the same checks:
 
 ```
 $ docker compose exec app sh -c "cd /srv && python -m unittest -v tests.test_qa"
-test_both_databases_reachable ... ok
-test_create_and_read_with_join ... ok
-test_delete_cascades_to_checks ... ok
-test_duplicate_name_conflict ... ok
-test_orphan_check_rejected_by_foreign_key ... ok
-test_transaction_rolls_back ... ok
-test_update_reflects_immediately ... ok
-test_atomic_update_of_embedded_field ... ok
-test_check_on_missing_document_404 ... ok
-test_create_and_read_single_query ... ok
-test_delete_cleans_up ... ok
-test_push_into_embedded_array ... ok
-test_injection_string_is_stored_as_data ... ok
-test_status_codes ... ok
-----------------------------------------------------------------------
-Ran 14 tests in 0.691s
+...
+Ran 14 tests in 0.429s
 
 OK
 ```
 
-## AI output audit
+**1. SQL CRUD & integrity**
 
-The AI's draft was checked against the assignment's Data Architecture Audit Checklist before running it.
-
-| Checklist question | Result | Evidence |
+| Test | Expected | Result |
 |---|---|---|
-| **SQL referential integrity:** real foreign keys, FK indexes and cascade rules? | ✅ Pass | `container_id UUID NOT NULL REFERENCES containers(id) ON DELETE CASCADE`; explicit composite index on `(container_id, checked_at)`, confirmed with `EXPLAIN` (index scan, no sequential scan) |
-| **NoSQL anti-patterns:** separate collections joined by ObjectId, or embedding that matches the read pattern? | ✅ Pass | One `containers` collection with embedded `checks`; detail read is a single `find_one`. Array bounded with `$slice` |
-| **SQL injection & parameterization:** raw string concatenation, or bound parameters? | ✅ Pass | Every value is a `%s` placeholder bound by psycopg. UPDATE column names come from a fixed allow-list, quoted with `psycopg.sql.Identifier`. The only f-string in SQL inserts a constant column list, never user input. A QA test stores `x'); DROP TABLE containers; --` as a plain name |
-| **ID & primary key generation:** safe across distributed boundaries? | ✅ Pass | UUIDv4 generated in the app for both engines; no shared counters |
-
-**Issues found in review and testing**
-
-| Finding | Type | How this project handles it |
-|---|---|---|
-| A non-object `initial_check` value (for example a string) reached code that expected a dictionary, producing a 500 instead of a 400 | Error handling | Input is type-checked first; the API returns `400 a check must be a JSON object` |
-| Browser requested `/favicon.ico`, adding a 404 to the console during QA | Console health | The page declares an empty inline icon |
-| Opening database clients at import time would be shared across gunicorn's forked workers (pymongo warns about this) | Driver warnings / connection safety | Clients are created lazily inside each worker on first use, and pools are closed on exit |
-| An embedded array that grows forever is a known MongoDB anti-pattern | NoSQL design | `$push` with `$slice: -100` caps the array |
-| After a delete, the automatic list refresh replaced the delete response in the UI, hiding `cascaded_checks` / `remaining_checks` | UI / QA visibility | Background list reloads are logged but no longer overwrite the response panel |
-| A stray `logLine()` call with no arguments, left inside the detail panel's HTML during UI edits, threw an error, so a newly created container did not appear until the page was refreshed | UI bug (found in DevTools Console) | Removed the stray call; the list and detail panel refresh normally |
-
-## When to choose SQL vs NoSQL (for this domain)
-
-**Heuristic:** choose by *how the data is read* and *what bad data would cost*.
-
-| Choose | When | In Pulse Data |
-|---|---|---|
-| **PostgreSQL (SQL)** | The relationship itself must be guaranteed; child records are queried on their own or across parents; you need reporting and multi-row transactions | Health-check **history**: "every check belongs to a real container", "all failed checks across the fleet in the last hour", audits. A foreign key and a JOIN make these safe and simple |
-| **MongoDB (NoSQL)** | Data is read and written as one unit; children have no life outside the parent; the child list is bounded | The **dashboard view**: "show this container with its latest checks" is one `find_one`, and adding a check is one atomic `$push` |
-
-**Rule of thumb:** if children are always accessed through their parent and stay bounded, **embed** them (document). If they're queried independently, shared, or grow without limit, give them their **own table with a foreign key** (relational).
-
-For this domain, PostgreSQL is the better system of record, because health history needs guaranteed integrity and cross-container queries. MongoDB fits the per-container dashboard read model.
-
-## Prerequisites
-
-- Docker Desktop with Docker Compose v2 (`docker compose version`)
-- Port 8000 free
-
-## Run guide
-
-All commands are run from this folder (`WK7/pulse-data`).
-
-**Build and start the stack**
-
-```bash
-docker compose up -d --build
-docker compose ps
-```
-
-Wait until all three services show `(healthy)`. On the very first start, PostgreSQL runs `db/schema.sql` automatically.
-
-**Open the app**
-
-- UI: http://localhost:8000. Switch between **PostgreSQL** and **MongoDB** with the tabs at the top.
-- Health of both databases: `curl -i http://localhost:8000/healthz`
-
-**Run the QA test suite** (14 automated tests covering the checklist below)
-
-```bash
-docker compose exec app sh -c "cd /srv && python -m unittest -v tests.test_qa"
-```
-
-**Watch parameterized queries in the logs**
-
-```bash
-docker compose logs -f app
-```
-
-Every SQL statement is logged with its `%s` placeholders and the separately bound parameter list.
-
-**Inspect the databases directly (CLI)**
-
-PostgreSQL: table structure, the rows in both tables, and the joined view the API returns:
-
-```bash
-docker compose exec postgres psql -U pulse -d pulse -c "\d health_checks"
-docker compose exec postgres psql -U pulse -d pulse -c "SELECT id, name, image, status, updated_at FROM containers;"
-docker compose exec postgres psql -U pulse -d pulse -c "SELECT container_id, status, latency_ms, detail, checked_at FROM health_checks ORDER BY checked_at;"
-docker compose exec postgres psql -U pulse -d pulse -c "SELECT c.name, h.status, h.latency_ms, h.detail FROM containers c JOIN health_checks h ON h.container_id = c.id ORDER BY h.checked_at;"
-```
-
-PostgreSQL itself blocking an orphan row, with no API involved:
-
-```bash
-docker compose exec postgres psql -U pulse -d pulse -c "INSERT INTO health_checks (container_id, status, latency_ms) VALUES (gen_random_uuid(), 'ok', 1);"
-# ERROR:  insert or update on table "health_checks" violates foreign key constraint "health_checks_container_id_fkey"
-```
-
-MongoDB: the whole document, and how many there are:
-
-```bash
-docker compose exec mongo mongosh -u pulse -p pulse_dev_password --quiet --eval "db.getSiblingDB('pulse').containers.find().toArray()"
-docker compose exec mongo mongosh -u pulse -p pulse_dev_password --quiet --eval "db.getSiblingDB('pulse').containers.countDocuments()"
-```
-
-**See the round trips per read**
-
-Open one container in the UI, then look at what each engine ran to load it:
-
-```bash
-docker compose logs app | grep -E "SQL SELECT c.id|MONGO containers.find_one" | tail -4
-```
-
-PostgreSQL loads the container and its checks with one `LEFT JOIN`; MongoDB with one `find_one`. If MongoDB stored checks in a separate collection (the "SQL-shaped NoSQL" anti-pattern), the same screen would need two round trips, `find_one` on `containers` and then `find` on `checks`, joined in the application.
-
-**Tear down**
-
-```bash
-docker compose down        # stop; data is kept in volumes
-docker compose down -v     # stop and delete all data
-```
-
-The schema file only runs when the PostgreSQL volume is empty. After changing `db/schema.sql`, run `docker compose down -v` first.
-
-## API
-
-Replace `{engine}` with `sql` (PostgreSQL) or `nosql` (MongoDB). Both engines accept the same requests and return the same JSON shape.
-
-| Method & path | Purpose | Success | Errors |
-|---|---|---|---|
-| `GET /api/{engine}/containers` | List containers with check counts | 200 | |
-| `POST /api/{engine}/containers` | Create. Body: `{"name", "image", "initial_check"?}` | 201 | 400 invalid input, 409 duplicate name |
-| `GET /api/{engine}/containers/{id}` | Read one container **with all its checks** | 200 | 400 bad id, 404 |
-| `PATCH /api/{engine}/containers/{id}` | Update `name`, `image` and/or `status` | 200 | 400, 404, 409 |
-| `DELETE /api/{engine}/containers/{id}` | Delete; reports cascaded or embedded checks removed | 200 | 400, 404 |
-| `POST /api/{engine}/containers/{id}/checks` | Add a check. Body: `{"status", "latency_ms", "detail"?}` | 201 | 400 (SQL: foreign key violation), 404 (Mongo: no document) |
-| `PATCH /api/{engine}/containers/{id}/checks/{checkId}` | Update a check's `status` or `detail` | 200 | 400, 404 |
-| `POST /api/sql/qa/transaction-rollback` | Inserts a container and an orphan check in one transaction; proves the rollback | 200 | |
-| `GET /healthz` | Ping both databases | 200 | 503 |
-
-In SQL, creating a container with `initial_check` writes both rows in **one transaction**.
-
-## QA checklist
-
-Automated coverage: `tests/test_qa.py`. Tick each row after running it yourself.
-
-**1. Relational (SQL) CRUD & integrity**
-
-| Test | How | Expected | Result |
-|---|---|---|---|
-| Create & read with join | Create a container, add a check, open it | Detail shows the check; badge reads "1 SQL query (LEFT JOIN …)" | ✅ `web-1` with 2 checks (ok, fail) returned by one LEFT JOIN |
-| Update | Change status to `stopped`, reopen | New value shows immediately | ✅ `PATCH 200`; shows `stopped` at once; `updated_at` moved from 3:21:02 to 3:25:06 PM via the trigger |
-| Delete & cascade | Delete a container that has checks | Response shows `cascaded_checks: N`, `remaining_checks: 0` | ✅ `DELETE 200`; `psql` confirms `remaining_checks = 0` |
-| Negative constraint (orphan) | **Orphan check (invalid FK)** button | `400`, `sqlstate 23503`, `health_checks_container_id_fkey` | ✅ `400`, `sqlstate 23503`, `health_checks_container_id_fkey` |
-| Transaction integrity | **Transaction rollback (SQL)** button | `passed: true`, `container_exists_after_rollback: false` | ✅ `200`, `passed: true`, `container_exists_after_rollback: false` |
+| Create & read with join | Detail shows the checks via one `LEFT JOIN` | ✅ `web-1` with 2 checks returned by one query |
+| Update | New value shows immediately | ✅ `200`; `stopped` shown at once; `updated_at` set by the trigger |
+| Delete & cascade | Children removed with the parent | ✅ `200`; `psql` confirms 0 remaining checks |
+| Orphan insert | Rejected by the foreign key | ✅ `400`, `sqlstate 23503`, `health_checks_container_id_fkey` |
+| Transaction integrity | Whole transaction rolls back | ✅ `passed: true`, `container_exists_after_rollback: false` |
 
 **2. NoSQL CRUD & documents**
 
-| Test | How | Expected | Result |
-|---|---|---|---|
-| Create & read in one query | MongoDB tab: create, open | Badge reads "1 MongoDB query (find_one, checks embedded)" | ✅ `201`; one `find_one` returns the container with its `checks` array; `mongosh findOne()` shows one document |
-| Atomic push into embedded array | Add a check | `201`; check appears inside the same document | ✅ Two `$push` writes (`201` each); both checks inside the same document |
-| Atomic embedded update | `PATCH …/checks/{checkId}` with `{"detail": "…"}` | `200`; detail changes in place | ✅ `test_atomic_update_of_embedded_field` passed against live MongoDB |
-| Delete & cleanup | Delete a container | `documents_remaining: 0`; reopening returns `404` | ✅ `DELETE 200`; `embedded_checks_removed: 2`, `documents_remaining: 0` |
-| Child write on a missing document | **Orphan check** button on the MongoDB tab | `404` (no foreign keys in MongoDB; the update matches no document) | ✅ `404 container not found` |
+| Test | Expected | Result |
+|---|---|---|
+| Create & read in one query | One `find_one` returns the container with its checks | ✅ `201`; `mongosh` shows one document with an embedded `checks` array |
+| Atomic push into embedded array | Check stored inside the same document | ✅ Two `$push` writes (`201` each) |
+| Atomic embedded update | Detail changes in place | ✅ `test_atomic_update_of_embedded_field` passed |
+| Delete & cleanup | Document and checks removed | ✅ `embedded_checks_removed: 2`, `documents_remaining: 0` |
+| Write to a missing document | `404` (no foreign keys) | ✅ `404 container not found` |
 
 **3. UI & responsive design**
 
 | Test | Expected | Result |
 |---|---|---|
-| Desktop and mobile (DevTools device toolbar, e.g. iPhone 12) | Tables render on desktop; stacked cards on mobile, no horizontal scrolling | ✅ 375 px (iPhone 12): forms, tables and logs fit with no horizontal scrolling; both tabs and both themes work |
-| Empty inputs | Inline "Name and image are required."; no request sent | ⬜ |
-| Long text | A very long name wraps without clipping; API rejects names over 100 characters with `400` | ✅ 82-character name wraps in the list (5 lines) and the detail title (2 lines) without clipping; names over 100 characters return 400 |
+| Desktop and mobile | No horizontal scrolling at 375 px | ✅ 375 px (iPhone 12): forms, tables and logs fit; both tabs and both themes work |
+| Empty inputs | Inline error; no request sent | ✅ "Name and image are required." shown, both fields outlined red, no request sent |
+| Long text | Wraps without clipping; over 100 characters returns `400` | ✅ 82-character name wraps in the list (5 lines) and the detail title (2 lines) |
 
 **4. Browser console & terminal health**
 
 | Test | Expected | Result |
 |---|---|---|
-| DevTools → Network | `200` reads, `201` creates, `400` bad input/FK, `404` unknown id, `409` duplicate | ✅ Network tab (Fetch/XHR): 400 for empty and long names, 404 for unknown ids and the MongoDB orphan check; 200 and 201 seen in the response log; 409 covered by the automated suite |
-| `docker compose logs app` | `SQL … %s … \| params=[…]` lines; no driver warnings, no connection errors | ✅ SQL logged with placeholders and a separate params list; no warnings or connection errors |
-| QA suite | `Ran 14 tests … OK` | ✅ `Ran 14 tests in 0.691s OK` against live PostgreSQL 16 and MongoDB 7 |
+| DevTools → Network | Correct status codes | ✅ `400` for empty and long names, `404` for unknown IDs and the MongoDB orphan check; `200` and `201` in the response log; `409` covered by the suite |
+| `docker compose logs app` | Parameterized SQL; no driver warnings | ✅ SQL logged with `%s` placeholders and a separate params list; no warnings or connection errors |
+| Automated suite | All tests pass | ✅ 14 of 14 |
+
+## Run guide
+
+**Prerequisites:** Docker Desktop with Compose v2, and port 8000 free. Run all commands from `WK7/pulse-data`.
+
+**Start**
+
+```bash
+docker compose up -d --build
+docker compose ps                                  # wait for three (healthy)
+```
+
+Open http://localhost:8000 and switch engines with the tabs. On the first start, PostgreSQL runs `db/schema.sql` automatically.
+
+**Test**
+
+```bash
+curl -i http://localhost:8000/healthz              # both databases: 200
+docker compose exec app sh -c "cd /srv && python -m unittest -v tests.test_qa"
+docker compose logs -f app                         # parameterized SQL in the logs
+```
+
+**Inspect the databases**
+
+```bash
+# PostgreSQL: structure, joined rows, and an orphan insert rejected by the foreign key
+docker compose exec postgres psql -U pulse -d pulse -c "\d health_checks"
+docker compose exec postgres psql -U pulse -d pulse -c "SELECT c.name, h.status, h.latency_ms, h.detail FROM containers c JOIN health_checks h ON h.container_id = c.id ORDER BY h.checked_at;"
+docker compose exec postgres psql -U pulse -d pulse -c "INSERT INTO health_checks (container_id, status, latency_ms) VALUES (gen_random_uuid(), 'ok', 1);"
+
+# MongoDB: the stored documents
+docker compose exec mongo mongosh -u pulse -p pulse_dev_password --quiet --eval "db.getSiblingDB('pulse').containers.find().toArray()"
+
+# Queries per detail read: one JOIN (SQL) vs one find_one (MongoDB)
+docker compose logs app | grep -E "SQL SELECT c.id|MONGO containers.find_one" | tail -4
+```
+
+**Stop**
+
+```bash
+docker compose down        # stop; data is kept
+docker compose down -v     # stop and delete all data (re-runs schema.sql on next start)
+```
+
+## API reference
+
+`{engine}` is `sql` (PostgreSQL) or `nosql` (MongoDB).
+
+| Method & path | Purpose | Success | Errors |
+|---|---|---|---|
+| `GET /api/{engine}/containers` | List containers with check counts | 200 | |
+| `POST /api/{engine}/containers` | Create: `{"name", "image", "initial_check"?}` | 201 | 400, 409 duplicate name |
+| `GET /api/{engine}/containers/{id}` | Read one container with all its checks | 200 | 400, 404 |
+| `PATCH /api/{engine}/containers/{id}` | Update `name`, `image` and/or `status` | 200 | 400, 404, 409 |
+| `DELETE /api/{engine}/containers/{id}` | Delete; reports checks removed | 200 | 400, 404 |
+| `POST /api/{engine}/containers/{id}/checks` | Add a check: `{"status", "latency_ms", "detail"?}` | 201 | 400 (SQL foreign key), 404 (MongoDB) |
+| `PATCH /api/{engine}/containers/{id}/checks/{checkId}` | Update a check's `status` or `detail` | 200 | 400, 404 |
+| `POST /api/sql/qa/transaction-rollback` | Proves rollback of a failed transaction | 200 | |
+| `GET /healthz` | Ping both databases | 200 | 503 |
 
 ## Project files
 
 ```
 pulse-data/
 ├── app/
-│   ├── app.py           # Flask routes, validation, error → status code mapping
-│   ├── sql_repo.py      # PostgreSQL: pooled connections, parameterized SQL, transactions
-│   ├── mongo_repo.py    # MongoDB: embedded documents, atomic $push / $set
-│   ├── errors.py        # shared errors (NotFound, Conflict, ConstraintError)
+│   ├── app.py             # routes, validation, error-to-status mapping
+│   ├── sql_repo.py        # PostgreSQL: pooled connections, parameterized SQL, transactions
+│   ├── mongo_repo.py      # MongoDB: embedded documents, atomic $push / $set
+│   ├── errors.py          # shared errors (NotFound, Conflict, ConstraintError)
 │   └── static/index.html  # single-page UI
-├── db/schema.sql        # DDL: tables, FK, CASCADE, CHECKs, index, trigger
-├── tests/test_qa.py     # automated QA suite (standard library only)
-├── Dockerfile           # Python 3.12 slim, non-root user, health check
-├── compose.yaml         # postgres + mongo + app, volumes, health checks, hardening
-├── requirements.txt     # pinned dependencies
-└── screenshots/       # images for this README, including data-models.png
+├── db/schema.sql          # tables, foreign key, cascade, constraints, index, trigger
+├── tests/test_qa.py       # automated QA suite (standard library only)
+├── Dockerfile             # Python 3.12 slim, non-root user, health check
+├── compose.yaml           # postgres + mongo + app, volumes, health checks, hardening
+├── requirements.txt       # pinned dependencies
+└── screenshots/           # images used in this README
 ```
 
 ## AI disclosure & prompt log
 
-**AI tool used:** Claude (Anthropic), Claude Opus 5.5 in the Claude app. It generated the schemas, API, UI, test suite and Docker files. I chose the domain and the scope, ran the build and the tests on my machine, and reviewed the output against the audit checklist above.
+**AI tool used:** Claude (Anthropic), Claude Opus 5.5, in the Claude app. It generated the schemas, API, UI, test suite and Docker files. I chose the domain and scope, ran every build and test on my machine, and reviewed the output against the audit checklist above.
 
-### Prompts (paraphrased)
+### Prompt log (summarized)
 
-1. Provided this assignment ("Polyglot Persistence: Schema Modeling & CRUD in SQL and NoSQL") and asked: "Let's start this"
-2. "Let's talk about systems: what I already have, and am I able to use these?"
-3. "Use Pulse." (Chose the Pulse domain: containers and health checks, built with Python and Flask, PostgreSQL and MongoDB in Docker Compose.)
-4. "Walk through and check these" (resetting both databases before testing), and shared screenshots and terminal output from each test run (SQL and MongoDB CRUD, QA buttons, `psql` and `mongosh` checks) for review.
-5. "Add the screenshots I gave you into the screenshots folder."
-6. "Make sure the README connects to each screenshot with a storyline from start to finish so readers can follow easily."
-7. "Do the images depict the walkthrough statements? Are we using the correct images from start to finish?"
-8. "Review this" (requirements: side-by-side data models and a flaw caught in the AI draft, the SQL and NoSQL CLI walkthroughs, round trips, QA checklist and an SQL vs NoSQL heuristic)
-9. In a separate Claude chat: verified the mobile layout at 375 px (iPhone 12) in Chrome DevTools.
-10. In a separate Claude chat: "Can we make a dark/light mode?" and "Replace the name with just the sun/moon logo." Also requested separate response logs for PostgreSQL and MongoDB, and troubleshot a list-refresh bug and a missing health-check detail (which turned out to be an empty Detail box).
+1. Shared the assignment brief ("Polyglot Persistence: Schema Modeling & CRUD in SQL and NoSQL") and asked to begin the project.
+2. Asked which of my existing systems could be reused as the project's domain.
+3. Selected Pulse as the domain (containers and health checks), built with Python, Flask, PostgreSQL and MongoDB in Docker Compose.
+4. Requested a guided test pass, starting from a reset of both databases, and shared screenshots and terminal output from each run for review.
+5. Asked for the test screenshots to be organized into a `screenshots` folder.
+6. Asked for the README to link each screenshot into a start-to-finish walkthrough.
+7. Asked to verify that each image matches its walkthrough step.
+8. Asked to review the remaining requirements: side-by-side data models, a flaw caught in the AI draft, SQL and NoSQL CLI walkthroughs, query round trips, the QA checklist and an SQL vs NoSQL heuristic.
+9. In a separate Claude chat, verified the mobile layout at 375 px in Chrome DevTools.
+10. In a separate Claude chat, requested a light/dark theme toggle with sun and moon icons and a separate response log per database, and troubleshot a list-refresh bug and a missing health-check detail (an empty Detail field).
+11. Asked to remove redundancy from the README and make it professional.
