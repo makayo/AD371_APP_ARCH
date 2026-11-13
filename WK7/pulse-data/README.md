@@ -5,7 +5,10 @@ Pulse Data stores containers and their health checks in **PostgreSQL** and **Mon
 It extends [Pulse](../../WK6/pulse) (WK6), which kept health data in memory.
 
 **Stack:** Python 3.12 · Flask · PostgreSQL 16 · MongoDB 7 · Docker Compose
+
 **Course:** AD371 Application Architecture, Week 7
+
+**Run it:** start everything with Docker Compose. See the [Run guide](#run-guide).
 
 ## Contents
 
@@ -259,7 +262,8 @@ docker compose exec postgres psql -U pulse -d pulse -c "INSERT INTO health_check
 docker compose exec mongo mongosh -u pulse -p pulse_dev_password --quiet --eval "db.getSiblingDB('pulse').containers.find().toArray()"
 
 # Queries per detail read: one JOIN (SQL) vs one find_one (MongoDB)
-docker compose logs app | grep -E "SQL SELECT c.id|MONGO containers.find_one" | tail -4
+docker compose logs app | grep "SQL SELECT c.id.*WHERE c.id" | tail -1
+docker compose logs app | grep "MONGO containers.find_one {'_id'" | tail -1
 ```
 
 **Stop**
