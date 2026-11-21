@@ -1,0 +1,17 @@
+{
+  "name": "async-api-queue",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "bullmq": "^6.7.7",
+    "express": "^5.3.0",
+    "ioredis": "^6.0.0"
+  }
+}
