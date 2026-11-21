@@ -1,3 +1,4 @@
+
 # AD371 Application Architecture: Fall Quarter 2027
 
 | Week | Project | Links |
@@ -7,3 +8,4 @@
 | WK5 | Multi-Subnet Network Topology & Load Balancer | [Code](WK5/multi_subnet_load_balancer) |
 | WK6 | Pulse: Container Health Dashboard | [Code](WK6/pulse) |
 | WK7 | Pulse Data: Polyglot Persistence (PostgreSQL + MongoDB) | [Code](WK7/pulse-data) |
+| WK8 | Asynchronous REST API & Redis/BullMQ Message Queue | [Code](WK8/async-api-queue) |
